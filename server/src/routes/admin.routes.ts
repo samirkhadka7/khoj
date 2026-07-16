@@ -14,11 +14,14 @@ import {
 } from '../controllers/admin.controller'
 import { authMiddleware } from '../middleware/auth.middleware'
 import { requireRole } from '../middleware/role.middleware'
+import { requireMfaForPrivileged } from '../middleware/mfa.middleware'
 
 const router = Router()
 
-// Every admin route requires BOTH auth and admin role — apply once for the whole router
-router.use(authMiddleware, requireRole('admin'))
+// Every admin route requires auth + admin role + MFA enabled. Admin actions are
+// the highest-impact surface (KYC approval, bans), so the whole router — reads
+// included, since the KYC queue and user list are sensitive PII — is MFA-gated.
+router.use(authMiddleware, requireRole('admin'), requireMfaForPrivileged)
 
 // ---- Dashboard ----
 router.get('/stats', getStats)

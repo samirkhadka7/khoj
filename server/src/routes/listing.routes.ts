@@ -15,6 +15,7 @@ import {
 } from '../controllers/listing.controller'
 import { authMiddleware } from '../middleware/auth.middleware'
 import { requireRole } from '../middleware/role.middleware'
+import { requireMfaForPrivileged } from '../middleware/mfa.middleware'
 import { upload } from '../middleware/upload.middleware'
 
 const router = Router()
@@ -40,6 +41,7 @@ router.post(
   '/',
   authMiddleware,
   requireRole('owner', 'admin'),
+  requireMfaForPrivileged,
   upload.array('images', 10),
   createListing
 )
@@ -48,12 +50,19 @@ router.put(
   '/:id',
   authMiddleware,
   requireRole('owner', 'admin'),
+  requireMfaForPrivileged,
   // PUT updates text fields only (JSON body). Image add/remove use the dedicated
   // endpoints below to keep the body shape predictable.
   updateListing
 )
 
-router.delete('/:id', authMiddleware, requireRole('owner', 'admin'), deleteListing)
+router.delete(
+  '/:id',
+  authMiddleware,
+  requireRole('owner', 'admin'),
+  requireMfaForPrivileged,
+  deleteListing
+)
 
 // ---- Image management (owner-only) ----
 // Append: multipart upload via multer, capped at 10 total images per listing
@@ -61,6 +70,7 @@ router.post(
   '/:id/images',
   authMiddleware,
   requireRole('owner', 'admin'),
+  requireMfaForPrivileged,
   upload.array('images', 10),
   addListingImages
 )
@@ -70,6 +80,7 @@ router.delete(
   '/:id/images',
   authMiddleware,
   requireRole('owner', 'admin'),
+  requireMfaForPrivileged,
   deleteListingImage
 )
 
