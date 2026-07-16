@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { submitKyc, getKycStatus } from '../controllers/kyc.controller'
+import { submitKyc, getKycStatus, getKycDocuments } from '../controllers/kyc.controller'
 import { authMiddleware } from '../middleware/auth.middleware'
 import { kycUpload } from '../middleware/upload.middleware'
 
@@ -9,6 +9,10 @@ const router = Router()
 router.use(authMiddleware)
 
 router.get('/status', getKycStatus)
+
+// Signed, short-lived document links — owner-or-admin gating enforced in the
+// controller. Registered after '/status' so that static path matches first.
+router.get('/:id/documents', getKycDocuments)
 
 // 3 distinct file fields, parsed by multer.fields()
 router.post(

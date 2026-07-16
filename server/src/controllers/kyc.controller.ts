@@ -1,8 +1,10 @@
 import type { Request, Response } from 'express'
+import mongoose from 'mongoose'
 import { Kyc, User, type IKyc } from '../models'
 import { asyncHandler } from '../utils/asyncHandler'
 import {
   uploadKycToCloudinary,
+  signedKycDownloadUrl,
   deleteKycAsset,
   type KycAssetRef,
 } from '../utils/cloudinary'
@@ -201,4 +203,53 @@ export const getKycStatus = asyncHandler(async (req: Request, res: Response) => 
   // Decrypt the user's own PII for display; encrypted doc refs are never returned
   // (documents are fetched via the gated signed-URL endpoint).
   res.json({ success: true, data: kyc ? sanitizeKycForOwner(kyc) : null })
+})
+
+/* -------------------------------------------------------------------------- */
+/*  GET /api/kyc/:id/documents   (protected)                                   */
+/*  Mints FRESH, short-lived (5 min) signed download links for the 3 KYC docs. */
+/*  Authorized ONLY for the KYC's own user or an admin. Links are generated on  */
+/*  demand and never stored — the DB holds only encrypted, non-resolvable refs. */
+/* -------------------------------------------------------------------------- */
+
+// Hardcoded field set = an inherent whitelist; no caller-supplied field name is
+// ever passed to the signer.
+const DOC_FIELDS = ['citizenshipFront', 'citizenshipBack', 'selfieWithId'] as const
+
+export const getKycDocuments = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params
+
+  if (!mongoose.isValidObjectId(id)) {
+    res.status(400).json({ success: false, message: 'Invalid KYC id' })
+    return
+  }
+
+  const kyc = await Kyc.findById(id)
+  if (!kyc) {
+    res.status(404).json({ success: false, message: 'KYC application not found' })
+    return
+  }
+
+  // Authorize: only the KYC's own applicant, or an admin reviewer. Nobody else —
+  // this is the sole path that turns an encrypted ref into a viewable document.
+  const isOwner = kyc.userId.toString() === req.user!.userId
+  const isAdmin = req.user!.role === 'admin'
+  if (!isOwner && !isAdmin) {
+    res.status(403).json({ success: false, message: 'Not authorized to view these documents' })
+    return
+  }
+
+  const TTL_SECONDS = 300
+  const documents: Record<string, string> = {}
+  for (const field of DOC_FIELDS) {
+    try {
+      const ref = decryptRef(kyc[field])
+      documents[field] = signedKycDownloadUrl(ref, TTL_SECONDS)
+    } catch {
+      // Legacy/placeholder row that isn't a valid encrypted ref — skip it
+      // rather than 500 the whole response.
+    }
+  }
+
+  res.json({ success: true, data: { documents, expiresInSeconds: TTL_SECONDS } })
 })
