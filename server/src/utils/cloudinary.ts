@@ -130,4 +130,87 @@ export const deleteManyFromCloudinary = async (urls: Array<string | undefined | 
   await Promise.allSettled(urls.filter(Boolean).map((u) => deleteFromCloudinary(u)))
 }
 
+/* -------------------------------------------------------------------------- */
+/*  KYC — private (authenticated) delivery                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Opaque reference to a private KYC asset. We persist the ENCRYPTED form of this
+ * (see utils/crypto.ts) instead of any URL — so the DB never holds a resolvable
+ * link to a citizenship document.
+ */
+export interface KycAssetRef {
+  publicId: string
+  resourceType: 'image' | 'raw' | 'video'
+  format: string
+}
+
+/**
+ * Upload a KYC document with `type: 'authenticated'` — a PRIVATE asset that
+ * Cloudinary will NOT serve from a plain public URL. Access requires a signed,
+ * time-limited download URL (see signedKycDownloadUrl). Returns the reference to
+ * store (encrypted), never a URL.
+ */
+export const uploadKycToCloudinary = async (
+  file: Express.Multer.File,
+  folder: string
+): Promise<KycAssetRef> => {
+  if (!CLOUDINARY_CLOUD_NAME) {
+    throw new Error('Cloudinary is not configured — set CLOUDINARY_* env vars')
+  }
+
+  const base64 = file.buffer.toString('base64')
+  const dataUri = `data:${file.mimetype};base64,${base64}`
+
+  const result = await cloudinary.uploader.upload(dataUri, {
+    folder,
+    resource_type: 'auto',
+    type: 'authenticated', // PRIVATE delivery — not resolvable by URL alone
+  })
+
+  return {
+    publicId: result.public_id,
+    resourceType: result.resource_type as KycAssetRef['resourceType'],
+    // `format` is occasionally empty for raw uploads — fall back to the file extension
+    format: result.format || file.originalname.split('.').pop() || '',
+  }
+}
+
+/**
+ * Mint a short-lived signed download URL for a private KYC asset. Generated ON
+ * DEMAND per authorized request and never stored/reused. Default 5-minute expiry.
+ *
+ * Uses `private_download_url` (works on all Cloudinary plans, no auth-token add-on)
+ * so the link stops resolving once `expires_at` passes.
+ */
+export const signedKycDownloadUrl = (ref: KycAssetRef, expiresInSeconds = 300): string => {
+  if (!CLOUDINARY_CLOUD_NAME) {
+    throw new Error('Cloudinary is not configured — set CLOUDINARY_* env vars')
+  }
+  const expiresAt = Math.floor(Date.now() / 1000) + expiresInSeconds
+  return cloudinary.utils.private_download_url(ref.publicId, ref.format, {
+    resource_type: ref.resourceType,
+    type: 'authenticated',
+    expires_at: expiresAt,
+    attachment: false, // display inline where the browser can
+  })
+}
+
+/**
+ * Delete a private KYC asset by reference. Unlike deleteFromCloudinary (which
+ * parses a public URL and targets type 'upload'), this passes type:'authenticated'
+ * so the private asset is actually found and destroyed. Never throws.
+ */
+export const deleteKycAsset = async (ref: KycAssetRef): Promise<void> => {
+  if (!CLOUDINARY_CLOUD_NAME) return
+  try {
+    await cloudinary.uploader.destroy(ref.publicId, {
+      resource_type: ref.resourceType,
+      type: 'authenticated',
+    })
+  } catch (err) {
+    console.error(`[Cloudinary] Failed to delete KYC asset ${ref.publicId}:`, err)
+  }
+}
+
 export { cloudinary }
