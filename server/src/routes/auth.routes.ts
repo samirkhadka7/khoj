@@ -2,6 +2,7 @@ import { Router } from 'express'
 import {
   register,
   login,
+  verifyLoginMfa,
   getMe,
   updateProfile,
   updateProfilePhoto,
@@ -20,6 +21,9 @@ router.use(authLimiter)
 // Public — no token needed
 router.post('/register', register)
 router.post('/login', loginLimiter, login)
+// Step 2 of MFA login — same per-IP failed-attempt limiter as /login so brute
+// forcing the 6-digit code shares the existing threshold (no second, inconsistent one).
+router.post('/login/mfa', loginLimiter, verifyLoginMfa)
 
 // Protected — require valid JWT
 router.get('/me', authMiddleware, getMe)

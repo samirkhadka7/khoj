@@ -28,5 +28,35 @@ export const signToken = (payload: JwtPayload): string => {
 }
 
 export const verifyToken = (token: string): JwtPayload => {
-  return jwt.verify(token, getSecret()) as JwtPayload
+  const payload = jwt.verify(token, getSecret()) as JwtPayload & { purpose?: string }
+  // Reject the short-lived MFA-challenge token here: it is signed with the same
+  // secret but only authorizes the second login step, NOT a full session. Without
+  // this check it could be presented as a Bearer session token (with no role).
+  if (payload.purpose === 'mfa') {
+    throw new Error('MFA challenge token cannot be used as a session token')
+  }
+  return payload
+}
+
+/* -------------------------------------------------------------------------- */
+/*  MFA challenge token — issued after a correct password when MFA is on.      */
+/*  It is short-lived and single-purpose: it ONLY authorizes POST /login/mfa,  */
+/*  and is rejected everywhere a real session token is expected (see above).   */
+/* -------------------------------------------------------------------------- */
+export interface MfaChallengePayload {
+  userId: string
+  purpose: 'mfa'
+}
+
+export const signMfaChallenge = (userId: string): string => {
+  const options: SignOptions = { expiresIn: '5m' } // just long enough to type a code
+  return jwt.sign({ userId, purpose: 'mfa' }, getSecret(), options)
+}
+
+export const verifyMfaChallenge = (token: string): MfaChallengePayload => {
+  const payload = jwt.verify(token, getSecret()) as MfaChallengePayload
+  if (payload.purpose !== 'mfa') {
+    throw new Error('Not an MFA challenge token')
+  }
+  return payload
 }

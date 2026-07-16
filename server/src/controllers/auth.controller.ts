@@ -1,9 +1,16 @@
 import type { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import { User, type IUser } from '../models'
-import { signToken } from '../utils/jwt'
+import { signToken, signMfaChallenge, verifyMfaChallenge } from '../utils/jwt'
 import { asyncHandler } from '../utils/asyncHandler'
 import { deleteFromCloudinary, uploadToCloudinary } from '../utils/cloudinary'
+import { decrypt } from '../utils/crypto'
+import { verifyTotp, matchAndConsumeBackupCode } from '../utils/mfa'
+
+// owner/admin are privileged roles that MUST use MFA. This flag tells the client
+// to push them into enrollment when they log in without MFA on yet.
+const mfaSetupRequired = (u: Pick<IUser, 'role' | 'mfaEnabled'>): boolean =>
+  (u.role === 'owner' || u.role === 'admin') && !u.mfaEnabled
 
 const SALT_ROUNDS = 10
 
@@ -115,11 +122,77 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     return
   }
 
+  // --- MFA gate (Feature 1) ---
+  // If MFA is enabled, the password alone is NOT enough. We withhold the session
+  // token and return a short-lived challenge token; the client must complete
+  // POST /api/auth/login/mfa with a valid code to actually get a session.
+  if (user.mfaEnabled) {
+    const mfaToken = signMfaChallenge(user._id.toString())
+    res.json({ success: true, data: { mfaRequired: true, mfaToken } })
+    return
+  }
+
   const token = signToken({ userId: user._id.toString(), role: user.role })
 
   res.json({
     success: true,
-    data: { token, user: sanitizeUser(user) },
+    // mfaSetupRequired nudges privileged (owner/admin) users to enroll.
+    data: { token, user: sanitizeUser(user), mfaSetupRequired: mfaSetupRequired(user) },
+  })
+})
+
+/* -------------------------------------------------------------------------- */
+/*  POST /api/auth/login/mfa                                                   */
+/*  Step 2 of MFA login: exchange a valid TOTP/backup code + the challenge     */
+/*  token for a real session token.                                           */
+/* -------------------------------------------------------------------------- */
+
+export const verifyLoginMfa = asyncHandler(async (req: Request, res: Response) => {
+  const { mfaToken, code } = req.body as { mfaToken?: string; code?: string }
+  if (!mfaToken || !code) {
+    res.status(400).json({ success: false, message: 'mfaToken and code are required' })
+    return
+  }
+
+  // The challenge token proves the password step was just passed (and expires in
+  // ~5 min). Reject anything that isn't a valid, unexpired MFA challenge.
+  let userId: string
+  try {
+    userId = verifyMfaChallenge(mfaToken).userId
+  } catch {
+    res.status(401).json({ success: false, message: 'MFA session expired — please log in again' })
+    return
+  }
+
+  const user = await User.findById(userId).select('+mfaSecret +mfaBackupCodes')
+  if (!user || !user.mfaEnabled || !user.mfaSecret) {
+    res.status(401).json({ success: false, message: 'MFA is not active for this account' })
+    return
+  }
+  // Re-check the ban here too — status could have changed since the password step.
+  if (user.isBanned) {
+    res.status(403).json({ success: false, message: 'This account has been banned' })
+    return
+  }
+
+  // Accept a live TOTP code OR an unused single-use backup code.
+  const totpOk = await verifyTotp(code, decrypt(user.mfaSecret))
+  const backupIdx = totpOk ? -1 : await matchAndConsumeBackupCode(code, user.mfaBackupCodes)
+  if (!totpOk && backupIdx === -1) {
+    res.status(401).json({ success: false, message: 'Invalid authentication code' })
+    return
+  }
+
+  // Persist the consumed backup code so it can't be reused.
+  if (backupIdx !== -1) {
+    user.markModified('mfaBackupCodes')
+    await user.save()
+  }
+
+  const token = signToken({ userId: user._id.toString(), role: user.role })
+  res.json({
+    success: true,
+    data: { token, user: sanitizeUser(user), usedBackupCode: backupIdx !== -1 },
   })
 })
 
