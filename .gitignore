@@ -1,0 +1,47 @@
+# ---------------------------------------------------------------------------
+# BaasKhoj monorepo .gitignore
+# Covers both client/ (Next.js) and server/ (Express) at the root.
+# ---------------------------------------------------------------------------
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Secrets & local env — NEVER commit these (JWT secret, DB URI, Cloudinary keys,
+# and the new ENCRYPTION_KEY used for TOTP-secret / KYC field encryption)
+.env
+.env.local
+.env*.local
+*.pem
+
+# Build output
+dist/
+.next/
+out/
+build/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+next-env.d.ts
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing / coverage
+coverage/
+
+# Editor / OS junk
+.DS_Store
+.vercel
+
+# Local tooling config (machine-specific)
+.claude/
+
+# Design scratch — not application code, kept out of the submission repo
+claude design/
+stich_design/

@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Global CSS variables — duplicated of tailwind.config tokens so that
+ * arbitrary CSS (e.g. inline `style` props, gradients, scoped CSS modules)
+ * can reference them by name. Keep both files in sync.
+ */
+:root {
+  /* Forest-green palette (Stitch "Modern Professional" system) */
+  --primary: #064e3b;
+  --primary-light: #0b6e52;
+  --primary-subtle: #e6f3ed;
+  --dark: #003527;
+  --dark-mid: #064e3b;
+  --accent: #b45309;
+  --accent-light: #f59e0b;
+  --accent-subtle: #fffbeb;
+
+  /* Cool-leaning neutrals */
+  --gray-50: #f8fafc;
+  --gray-100: #eef1f5;
+  --gray-200: #dde3ea;
+  --gray-400: #94a0b0;
+  --gray-600: #556070;
+  --gray-800: #0b1c30;
+
+  --shadow-card: 0 4px 20px rgba(11, 28, 48, 0.06), 0 1px 2px rgba(11, 28, 48, 0.04);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-hanken), 'Hanken Grotesk', sans-serif;
+  color: var(--gray-800);
+  background: var(--gray-50);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Material Symbols Outlined — icon font for the landing page design.
+   `.fill-icon` switches a symbol to its filled variant. */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+.fill-icon {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Custom Scrollbar for better UX */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--gray-200);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-400);
+}
+
+/* Better Focus Rings for Accessibility */
+*:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
