@@ -22,10 +22,17 @@ export interface IKycAddress {
 export interface IKyc {
   _id: Types.ObjectId
   userId: Types.ObjectId
+  // --- Sensitive PII: stored AES-256-GCM ENCRYPTED at rest (Feature 4). ---
+  // These hold ciphertext produced by utils/crypto.ts, NOT the plaintext value.
+  // Decrypted only in authorized read paths (admin review / the user's own status).
   legalName: string
   phone: string
   isPhoneVerified: boolean
   address: IKycAddress
+  // --- Document references: NO public URL is stored. ---
+  // Each field holds the AES-256-GCM ciphertext of JSON `{ publicId, resourceType }`
+  // pointing at a Cloudinary `type: 'authenticated'` asset (private — not resolvable
+  // by URL alone). A short-lived signed download link is minted on demand instead.
   citizenshipFront: string
   citizenshipBack: string
   selfieWithId: string
@@ -46,19 +53,18 @@ const kycSchema = new Schema<IKyc>(
       required: true,
       unique: true, // one application per user; resubmission updates the same doc
     },
-    legalName: { type: String, required: true, trim: true, maxlength: 200 },
-    phone: {
-      type: String,
-      required: true,
-      trim: true,
-      match: [/^9\d{9}$/, 'Phone must be a 10-digit Nepali mobile number'],
-    },
+    // Encrypted (ciphertext) fields — the plaintext-format validators are removed
+    // on purpose: a phone-number regex or a 200-char cap cannot apply to ciphertext.
+    // The plaintext is validated in the controller BEFORE encryption instead.
+    legalName: { type: String, required: true }, // AES-256-GCM ciphertext
+    phone: { type: String, required: true }, // AES-256-GCM ciphertext
     isPhoneVerified: { type: Boolean, default: false },
     address: {
-      district: { type: String, required: true, trim: true },
-      area: { type: String, required: true, trim: true },
+      district: { type: String, required: true }, // AES-256-GCM ciphertext
+      area: { type: String, required: true }, // AES-256-GCM ciphertext
     },
-    citizenshipFront: { type: String, required: true }, // Cloudinary URL
+    // Encrypted JSON `{ publicId, resourceType }` — never a resolvable URL.
+    citizenshipFront: { type: String, required: true },
     citizenshipBack: { type: String, required: true },
     selfieWithId: { type: String, required: true },
     status: {
