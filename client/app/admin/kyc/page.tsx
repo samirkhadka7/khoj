@@ -334,11 +334,35 @@ export default function AdminKycPage() {
 /* -------------------------------------------------------------------------- */
 
 function DocViewerModal({ kyc, onClose }: { kyc: Kyc; onClose: () => void }) {
-  const docs: { label: string; url: string }[] = [
-    { label: 'Citizenship Front', url: kyc.citizenshipFront },
-    { label: 'Citizenship Back', url: kyc.citizenshipBack },
-    { label: 'Selfie with ID', url: kyc.selfieWithId },
-  ]
+  // Documents are NOT in the KYC payload anymore. Fetch fresh short-lived signed
+  // links on open (owner-or-admin gated server-side); they expire in ~5 minutes.
+  const [docs, setDocs] = useState<{ label: string; url: string }[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      try {
+        const { data } = await api.get<ApiResponse<{ documents: Record<string, string> }>>(
+          `/api/kyc/${kyc._id}/documents`
+        )
+        if (!active) return
+        const d = data.data?.documents ?? {}
+        setDocs(
+          [
+            { label: 'Citizenship Front', url: d.citizenshipFront },
+            { label: 'Citizenship Back', url: d.citizenshipBack },
+            { label: 'Selfie with ID', url: d.selfieWithId },
+          ].filter((x): x is { label: string; url: string } => Boolean(x.url))
+        )
+      } catch {
+        if (active) setError('Could not load documents. Close and reopen to get a fresh secure link.')
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [kyc._id])
 
   return (
     <div
@@ -370,9 +394,19 @@ function DocViewerModal({ kyc, onClose }: { kyc: Kyc; onClose: () => void }) {
         </div>
 
         <div className="overflow-y-auto p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {docs.map((d) => (
-            <DocPreview key={d.label} label={d.label} url={d.url} />
-          ))}
+          {error ? (
+            <div className="col-span-full text-[13px] text-red-600 py-8 text-center">{error}</div>
+          ) : !docs ? (
+            <div className="col-span-full flex items-center justify-center py-10 text-gray-400">
+              <Loader2 size={20} className="animate-spin" />
+            </div>
+          ) : docs.length === 0 ? (
+            <div className="col-span-full text-[13px] text-gray-500 py-8 text-center">
+              No documents available
+            </div>
+          ) : (
+            docs.map((d) => <DocPreview key={d.label} label={d.label} url={d.url} />)
+          )}
         </div>
       </div>
     </div>
@@ -380,7 +414,10 @@ function DocViewerModal({ kyc, onClose }: { kyc: Kyc; onClose: () => void }) {
 }
 
 function DocPreview({ label, url }: { label: string; url: string }) {
-  const isPdf = url.toLowerCase().endsWith('.pdf') || url.includes('/raw/')
+  // Signed Cloudinary download links carry the format as a query param, so also
+  // detect PDFs via format=pdf (not just a .pdf path/extension).
+  const isPdf =
+    url.includes('format=pdf') || url.includes('/raw/') || url.toLowerCase().includes('.pdf')
   return (
     <div className="border border-gray-100 rounded-md overflow-hidden bg-gray-50">
       <div className="aspect-[3/4] bg-gray-100 flex items-center justify-center">

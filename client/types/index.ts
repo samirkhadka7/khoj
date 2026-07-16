@@ -172,9 +172,12 @@ export interface Kyc {
   phone: string
   isPhoneVerified: boolean
   address: KycAddress
-  citizenshipFront: string
-  citizenshipBack: string
-  selfieWithId: string
+  // Documents are no longer returned inline — they're fetched as short-lived
+  // signed links from GET /api/kyc/:id/documents (Feature 4). Kept optional for
+  // any legacy consumer.
+  citizenshipFront?: string
+  citizenshipBack?: string
+  selfieWithId?: string
   status: KycStatus
   rejectionReason?: string
   reviewedBy?: string | User

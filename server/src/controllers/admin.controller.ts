@@ -12,6 +12,41 @@ import { asyncHandler } from '../utils/asyncHandler'
 import { createNotification } from '../utils/notifications'
 import { deleteManyFromCloudinary } from '../utils/cloudinary'
 import { escapeRegex } from '../utils/escapeRegex'
+import { decrypt } from '../utils/crypto'
+
+/**
+ * KYC PII is stored AES-256-GCM encrypted (Feature 4). The admin review queue
+ * needs it in the clear to display, so we decrypt it HERE — an authorized admin
+ * path — but never expose the encrypted document refs: those are fetched as
+ * short-lived signed links via GET /api/kyc/:id/documents.
+ */
+const safeDecrypt = (cipher?: string): string => {
+  if (!cipher) return ''
+  try {
+    return decrypt(cipher)
+  } catch {
+    return ''
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sanitizeKycForAdmin = (kyc: any) => ({
+  _id: kyc._id,
+  userId: kyc.userId, // populated (name/email/photo)
+  reviewedBy: kyc.reviewedBy, // populated (name)
+  legalName: safeDecrypt(kyc.legalName),
+  phone: safeDecrypt(kyc.phone),
+  address: {
+    district: safeDecrypt(kyc.address?.district),
+    area: safeDecrypt(kyc.address?.area),
+  },
+  isPhoneVerified: kyc.isPhoneVerified,
+  status: kyc.status,
+  rejectionReason: kyc.rejectionReason,
+  submittedAt: kyc.submittedAt,
+  reviewedAt: kyc.reviewedAt,
+  createdAt: kyc.createdAt,
+})
 
 /* -------------------------------------------------------------------------- */
 /*  GET /api/admin/stats                                                       */
@@ -293,7 +328,8 @@ export const listKyc = asyncHandler(async (req: Request, res: Response) => {
 
   res.json({
     success: true,
-    data: items,
+    // Decrypt PII for admin display; encrypted document refs are never returned.
+    data: items.map(sanitizeKycForAdmin),
     pagination: { page, limit, total, pages: Math.ceil(total / limit) || 1 },
   })
 })
