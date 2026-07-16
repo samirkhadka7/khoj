@@ -1,7 +1,54 @@
 import type { Request, Response } from 'express'
-import { Kyc, User } from '../models'
+import { Kyc, User, type IKyc } from '../models'
 import { asyncHandler } from '../utils/asyncHandler'
-import { deleteManyFromCloudinary, uploadToCloudinary } from '../utils/cloudinary'
+import {
+  uploadKycToCloudinary,
+  deleteKycAsset,
+  type KycAssetRef,
+} from '../utils/cloudinary'
+import { encrypt, decrypt } from '../utils/crypto'
+
+/* -------------------------------------------------------------------------- */
+/*  Encryption helpers (Feature 4)                                             */
+/*  KYC PII + document references are stored AES-256-GCM encrypted at rest.    */
+/* -------------------------------------------------------------------------- */
+
+/** Encrypt a Cloudinary asset reference (publicId + type) as one ciphertext string. */
+const encryptRef = (ref: KycAssetRef): string => encrypt(JSON.stringify(ref))
+
+/** Decrypt a stored reference back into a usable KycAssetRef. */
+const decryptRef = (cipher: string): KycAssetRef => JSON.parse(decrypt(cipher)) as KycAssetRef
+
+/** Decrypt but never throw — legacy/placeholder rows return '' instead of crashing a read. */
+const safeDecrypt = (cipher: string | undefined): string => {
+  if (!cipher) return ''
+  try {
+    return decrypt(cipher)
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Shape returned to the KYC's OWN user: PII is decrypted (it's their data), but
+ * the encrypted document references are never exposed — documents are fetched
+ * via the gated signed-URL endpoint instead.
+ */
+const sanitizeKycForOwner = (kyc: IKyc) => ({
+  _id: kyc._id,
+  status: kyc.status,
+  legalName: safeDecrypt(kyc.legalName),
+  phone: safeDecrypt(kyc.phone),
+  address: {
+    district: safeDecrypt(kyc.address?.district),
+    area: safeDecrypt(kyc.address?.area),
+  },
+  isPhoneVerified: kyc.isPhoneVerified,
+  rejectionReason: kyc.rejectionReason,
+  submittedAt: kyc.submittedAt,
+  reviewedAt: kyc.reviewedAt,
+  createdAt: kyc.createdAt,
+})
 
 /* -------------------------------------------------------------------------- */
 /*  POST /api/kyc/submit   (any authenticated user)                            */
@@ -30,6 +77,14 @@ export const submitKyc = asyncHandler(async (req: Request, res: Response) => {
       success: false,
       message: 'Phone must be a 10-digit Nepali number starting with 9',
     })
+    return
+  }
+
+  // Validate plaintext HERE (before encryption) — the model can no longer enforce
+  // a length on legalName because it now stores ciphertext.
+  const trimmedName = legalName.trim()
+  if (trimmedName.length < 3 || trimmedName.length > 200) {
+    res.status(400).json({ success: false, message: 'legalName must be 3–200 characters' })
     return
   }
 
@@ -67,29 +122,43 @@ export const submitKyc = asyncHandler(async (req: Request, res: Response) => {
     return
   }
 
-  // Upload all three documents to Cloudinary in parallel.
-  // Folder is per-user so it's easy to find and audit.
-  const [frontUrl, backUrl, selfieUrl] = await Promise.all([
-    uploadToCloudinary(front, `baskhoj/kyc/${req.user!.userId}`),
-    uploadToCloudinary(back, `baskhoj/kyc/${req.user!.userId}`),
-    uploadToCloudinary(selfie, `baskhoj/kyc/${req.user!.userId}`),
+  // Upload all three documents as PRIVATE (authenticated) Cloudinary assets in
+  // parallel. We get back opaque refs (publicId/type/format) — never URLs.
+  const [frontRef, backRef, selfieRef] = await Promise.all([
+    uploadKycToCloudinary(front, `baskhoj/kyc/${req.user!.userId}`),
+    uploadKycToCloudinary(back, `baskhoj/kyc/${req.user!.userId}`),
+    uploadKycToCloudinary(selfie, `baskhoj/kyc/${req.user!.userId}`),
   ])
+
+  // Everything sensitive is encrypted before it touches the DB.
+  const encryptedFields = {
+    legalName: encrypt(trimmedName),
+    phone: encrypt(phone.trim()),
+    address: { district: encrypt(district.trim()), area: encrypt(area.trim()) },
+    citizenshipFront: encryptRef(frontRef),
+    citizenshipBack: encryptRef(backRef),
+    selfieWithId: encryptRef(selfieRef),
+  }
 
   if (existing) {
     // Resubmit after rejection — overwrite the existing doc and reset status.
-    // Snapshot the OLD doc URLs before mutating, then async-delete after save.
-    const oldUrls = [
-      existing.citizenshipFront,
-      existing.citizenshipBack,
-      existing.selfieWithId,
-    ]
+    // Snapshot the OLD encrypted refs first so we can delete those private assets.
+    const oldRefs = [existing.citizenshipFront, existing.citizenshipBack, existing.selfieWithId]
+      .map((c) => {
+        try {
+          return decryptRef(c)
+        } catch {
+          return null
+        }
+      })
+      .filter((r): r is KycAssetRef => r !== null)
 
-    existing.legalName = legalName.trim()
-    existing.phone = phone.trim()
-    existing.address = { district: district.trim(), area: area.trim() }
-    existing.citizenshipFront = frontUrl
-    existing.citizenshipBack = backUrl
-    existing.selfieWithId = selfieUrl
+    existing.legalName = encryptedFields.legalName
+    existing.phone = encryptedFields.phone
+    existing.address = encryptedFields.address
+    existing.citizenshipFront = encryptedFields.citizenshipFront
+    existing.citizenshipBack = encryptedFields.citizenshipBack
+    existing.selfieWithId = encryptedFields.selfieWithId
     existing.status = 'pending'
     existing.rejectionReason = undefined
     existing.reviewedBy = undefined
@@ -97,33 +166,29 @@ export const submitKyc = asyncHandler(async (req: Request, res: Response) => {
     existing.submittedAt = new Date()
     await existing.save()
 
-    // Old docs (from the rejected submission) may still exist on Cloudinary if
-    // the reject flow didn't run — clean them now to be safe.
-    void deleteManyFromCloudinary(oldUrls)
+    // Old private assets from the rejected submission — clean them up.
+    for (const ref of oldRefs) void deleteKycAsset(ref)
 
-    res.status(200).json({ success: true, data: existing })
+    res.status(200).json({ success: true, data: sanitizeKycForOwner(existing) })
     return
   }
 
   const kyc = await Kyc.create({
     userId: req.user!.userId,
-    legalName: legalName.trim(),
-    phone: phone.trim(),
-    address: { district: district.trim(), area: area.trim() },
-    citizenshipFront: frontUrl,
-    citizenshipBack: backUrl,
-    selfieWithId: selfieUrl,
+    ...encryptedFields,
     status: 'pending',
     submittedAt: new Date(),
   })
 
-  // Sync the user's phone if they didn't have one yet
+  // Sync the user's phone if they didn't have one yet. NOTE: User.phone stays
+  // plaintext (separate model, needed for SMS + its own format validator) — we
+  // pass the plaintext value here, not the encrypted KYC copy.
   await User.updateOne(
     { _id: req.user!.userId, $or: [{ phone: { $exists: false } }, { phone: '' }] },
     { $set: { phone: phone.trim() } }
   )
 
-  res.status(201).json({ success: true, data: kyc })
+  res.status(201).json({ success: true, data: sanitizeKycForOwner(kyc) })
 })
 
 /* -------------------------------------------------------------------------- */
@@ -133,5 +198,7 @@ export const submitKyc = asyncHandler(async (req: Request, res: Response) => {
 
 export const getKycStatus = asyncHandler(async (req: Request, res: Response) => {
   const kyc = await Kyc.findOne({ userId: req.user!.userId })
-  res.json({ success: true, data: kyc })
+  // Decrypt the user's own PII for display; encrypted doc refs are never returned
+  // (documents are fetched via the gated signed-URL endpoint).
+  res.json({ success: true, data: kyc ? sanitizeKycForOwner(kyc) : null })
 })
