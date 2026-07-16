@@ -28,6 +28,7 @@ import {
   Kyc,
   Message,
 } from '../src/models'
+import { encrypt } from '../src/utils/crypto'
 
 dotenv.config()
 
@@ -140,18 +141,25 @@ async function run() {
   ])
 
   // ---- KYC (approved) for the 3 owners ----
-  console.log('[Seed] Creating approved KYC records...')
-  const ph = 'https://res.cloudinary.com/demo/image/upload/sample.jpg' // placeholder docs
+  // Feature 4: PII + document refs are stored AES-256-GCM ENCRYPTED, exactly as the
+  // submit controller writes them. These use PLACEHOLDER refs (no real Cloudinary
+  // asset), so the admin DocViewer will show a broken/expired link for seed rows —
+  // that's expected; there are no real citizenship documents in demo data.
+  console.log('[Seed] Creating approved KYC records (encrypted)...')
+  const placeholderRef = () =>
+    encrypt(JSON.stringify({ publicId: 'baskhoj/kyc/placeholder', resourceType: 'image', format: 'jpg' }))
+  const kycDistricts = ['Kathmandu', 'Lalitpur', 'Kathmandu']
+  const kycAreas = ['Kirtipur', 'Patan', 'Baneshwor']
   await Kyc.create(
     owners.map((o, i) => ({
       userId: o._id,
-      legalName: o.name,
-      phone: o.phone,
+      legalName: encrypt(o.name),
+      phone: encrypt(o.phone ?? ''),
       isPhoneVerified: true,
-      address: { district: ['Kathmandu', 'Lalitpur', 'Kathmandu'][i], area: ['Kirtipur', 'Patan', 'Baneshwor'][i] },
-      citizenshipFront: ph,
-      citizenshipBack: ph,
-      selfieWithId: ph,
+      address: { district: encrypt(kycDistricts[i]), area: encrypt(kycAreas[i]) },
+      citizenshipFront: placeholderRef(),
+      citizenshipBack: placeholderRef(),
+      selfieWithId: placeholderRef(),
       status: 'approved',
       reviewedBy: admin._id,
       submittedAt: new Date(Date.now() - 5 * 86400000),
