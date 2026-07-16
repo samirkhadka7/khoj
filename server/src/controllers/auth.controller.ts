@@ -23,6 +23,8 @@ const sanitizeUser = (u: IUser) => ({
   profilePhoto: u.profilePhoto,
   bio: u.bio,
   isVerified: u.isVerified,
+  // Expose only whether MFA is on — never the secret or backup codes.
+  mfaEnabled: u.mfaEnabled,
   createdAt: u.createdAt,
 })
 

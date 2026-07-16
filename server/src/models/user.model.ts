@@ -17,6 +17,18 @@ export interface IUser {
   bio?: string
   isVerified: boolean
   isBanned: boolean
+  // --- MFA / TOTP (Feature 1) ---
+  // mfaEnabled is the only MFA field returned to clients; the rest are select:false.
+  mfaEnabled: boolean
+  // AES-256-GCM encrypted TOTP secret (reversible — needed to recompute codes).
+  mfaSecret?: string
+  // Encrypted secret held DURING enrollment, before the user confirms one code.
+  // Promoted to mfaSecret on successful enable; discarded otherwise.
+  mfaPendingSecret?: string
+  // One-time recovery codes, bcrypt-hashed at rest (like passwords — verify-only).
+  // Each is single-use: usedAt is stamped when consumed and never reset.
+  mfaBackupCodes?: { codeHash: string; usedAt?: Date }[]
+  mfaEnabledAt?: Date
   createdAt: Date
   updatedAt: Date
 }
@@ -60,6 +72,26 @@ const userSchema = new Schema<IUser>(
     bio: { type: String, maxlength: 500 },
     isVerified: { type: Boolean, default: false },
     isBanned: { type: Boolean, default: false },
+
+    // --- MFA / TOTP (Feature 1) ---
+    // Secrets are select:false so they are NEVER returned by a normal query /
+    // profile fetch — a route must explicitly .select('+mfaSecret') to read them,
+    // and that only happens in the login-MFA-verify path.
+    mfaEnabled: { type: Boolean, default: false },
+    mfaSecret: { type: String, select: false },
+    mfaPendingSecret: { type: String, select: false },
+    mfaBackupCodes: {
+      type: [
+        {
+          _id: false,
+          codeHash: { type: String, required: true },
+          usedAt: { type: Date },
+        },
+      ],
+      select: false,
+      default: undefined, // omit the array entirely until MFA is enabled
+    },
+    mfaEnabledAt: { type: Date },
   },
   {
     timestamps: true, // adds createdAt + updatedAt automatically
