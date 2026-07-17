@@ -6,7 +6,7 @@ import { asyncHandler } from '../utils/asyncHandler'
 import { deleteFromCloudinary, uploadToCloudinary } from '../utils/cloudinary'
 import { decrypt } from '../utils/crypto'
 import { verifyTotp, matchAndConsumeBackupCode } from '../utils/mfa'
-import { hashToken } from '../utils/refreshToken'
+import { hashToken, hashUserAgent } from '../utils/refreshToken'
 import {
   issueSession,
   rotateSession,
@@ -245,7 +245,17 @@ export const refresh = asyncHandler(async (req: Request, res: Response) => {
     return
   }
 
-  // (Device/UA-binding check is added in commit 4.)
+  // Device binding: the refresh must arrive from the same client the session was
+  // created on. An exact User-Agent hash mismatch is treated as a possible
+  // stolen-cookie replay from another device -> revoke the family and refuse.
+  // (Trade-off: a browser auto-update changes the UA string, so the next refresh
+  // is rejected and the user must log in again — the accepted cost of UA binding.)
+  if (hashUserAgent(req.headers['user-agent']) !== session.userAgentHash) {
+    await revokeFamily(session.familyId)
+    clearRefreshCookie(res)
+    res.status(401).json({ success: false, message: 'Session device mismatch — please log in again' })
+    return
+  }
 
   // Fetch the user fresh — never trust stale state; reject banned/deleted.
   const user = await User.findById(session.userId)
