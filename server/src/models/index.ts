@@ -1,5 +1,5 @@
 /**
- * Barrel file — re-exports all 6 models for clean imports elsewhere:
+ * Barrel file — re-exports all models for clean imports elsewhere:
  *   import { User, Listing, ContactRequest } from '../models'
  *
  * Importing this file at server boot also forces Mongoose to register every schema
@@ -26,3 +26,6 @@ export type { INotification } from './notification.model'
 
 export { Kyc } from './kyc.model'
 export type { IKyc, IKycAddress } from './kyc.model'
+
+export { Session } from './session.model'
+export type { ISession } from './session.model'
