@@ -3,6 +3,7 @@ import {
   register,
   login,
   verifyLoginMfa,
+  refresh,
   getMe,
   updateProfile,
   updateProfilePhoto,
@@ -24,6 +25,11 @@ router.post('/login', loginLimiter, login)
 // Step 2 of MFA login — same per-IP failed-attempt limiter as /login so brute
 // forcing the 6-digit code shares the existing threshold (no second, inconsistent one).
 router.post('/login/mfa', loginLimiter, verifyLoginMfa)
+
+// Refresh — the HttpOnly refresh cookie is the credential (no Bearer token).
+// Rotates the token and returns a fresh access token. authLimiter (router-level)
+// bounds abuse.
+router.post('/refresh', refresh)
 
 // Protected — require valid JWT
 router.get('/me', authMiddleware, getMe)

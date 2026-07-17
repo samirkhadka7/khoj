@@ -1,11 +1,19 @@
 import type { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
-import { User, type IUser } from '../models'
+import { User, Session, type IUser } from '../models'
 import { signToken, signMfaChallenge, verifyMfaChallenge } from '../utils/jwt'
 import { asyncHandler } from '../utils/asyncHandler'
 import { deleteFromCloudinary, uploadToCloudinary } from '../utils/cloudinary'
 import { decrypt } from '../utils/crypto'
 import { verifyTotp, matchAndConsumeBackupCode } from '../utils/mfa'
+import { hashToken } from '../utils/refreshToken'
+import {
+  issueSession,
+  rotateSession,
+  revokeFamily,
+  readRefreshCookie,
+  clearRefreshCookie,
+} from '../utils/session'
 
 // owner/admin are privileged roles that MUST use MFA. This flag tells the client
 // to push them into enrollment when they log in without MFA on yet.
@@ -133,6 +141,8 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   }
 
   const token = signToken({ userId: user._id.toString(), role: user.role })
+  // Start a session family + set the HttpOnly refresh cookie (Feature 5).
+  await issueSession(user._id.toString(), req, res)
 
   res.json({
     success: true,
@@ -190,10 +200,67 @@ export const verifyLoginMfa = asyncHandler(async (req: Request, res: Response) =
   }
 
   const token = signToken({ userId: user._id.toString(), role: user.role })
+  // Second factor passed — now issue the session + refresh cookie (Feature 5).
+  await issueSession(user._id.toString(), req, res)
   res.json({
     success: true,
     data: { token, user: sanitizeUser(user), usedBackupCode: backupIdx !== -1 },
   })
+})
+
+/* -------------------------------------------------------------------------- */
+/*  POST /api/auth/refresh                                                     */
+/*  The refresh cookie is the credential (no Bearer token). Validates it       */
+/*  against the Session store, ROTATES it, and returns a fresh access token.   */
+/*  Reuse of an already-rotated/revoked token = theft -> revoke the family.    */
+/* -------------------------------------------------------------------------- */
+
+export const refresh = asyncHandler(async (req: Request, res: Response) => {
+  const raw = readRefreshCookie(req)
+  if (!raw) {
+    res.status(401).json({ success: false, message: 'No refresh token' })
+    return
+  }
+
+  const session = await Session.findOne({ tokenHash: hashToken(raw) })
+  if (!session) {
+    // Unknown/forged token (or already TTL-cleaned). Nothing to rotate.
+    clearRefreshCookie(res)
+    res.status(401).json({ success: false, message: 'Invalid session' })
+    return
+  }
+
+  // Reuse detection: a token that was already rotated (usedAt) or revoked being
+  // presented again is a theft signal — kill the entire family.
+  if (session.usedAt || session.revokedAt) {
+    await revokeFamily(session.familyId)
+    clearRefreshCookie(res)
+    res.status(401).json({ success: false, message: 'Session reuse detected — please log in again' })
+    return
+  }
+
+  if (session.expiresAt.getTime() < Date.now()) {
+    clearRefreshCookie(res)
+    res.status(401).json({ success: false, message: 'Session expired — please log in again' })
+    return
+  }
+
+  // (Device/UA-binding check is added in commit 4.)
+
+  // Fetch the user fresh — never trust stale state; reject banned/deleted.
+  const user = await User.findById(session.userId)
+  if (!user || user.isBanned) {
+    await revokeFamily(session.familyId)
+    clearRefreshCookie(res)
+    res.status(401).json({ success: false, message: 'Account not available' })
+    return
+  }
+
+  // Rotate the refresh token (marks this one used, mints a new one + cookie).
+  await rotateSession(session, res)
+
+  const token = signToken({ userId: user._id.toString(), role: user.role })
+  res.json({ success: true, data: { token } })
 })
 
 /* -------------------------------------------------------------------------- */

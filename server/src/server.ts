@@ -3,6 +3,7 @@ import express, { Application, Request, Response, NextFunction } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
+import cookieParser from 'cookie-parser'
 import mongoSanitize from 'express-mongo-sanitize'
 import dotenv from 'dotenv'
 // Load .env BEFORE we read env in module-scope (e.g. ALLOWED_ORIGINS below)
@@ -72,6 +73,9 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'))
 // Body parsers — limit raised to 10mb so JSON payloads with base64 previews don't get rejected
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+
+// Parses the HttpOnly refresh-token cookie into req.cookies (Feature 5).
+app.use(cookieParser())
 
 /**
  * NoSQL injection guard — strips `$` and `.` keys from req.body / req.params /
