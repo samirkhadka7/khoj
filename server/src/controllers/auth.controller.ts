@@ -264,6 +264,26 @@ export const refresh = asyncHandler(async (req: Request, res: Response) => {
 })
 
 /* -------------------------------------------------------------------------- */
+/*  POST /api/auth/logout                                                      */
+/*  Explicit server-side invalidation: revokes the whole session family and    */
+/*  clears the cookie. Works off the refresh cookie (no Bearer needed), so it   */
+/*  succeeds even if the access token has already expired. Idempotent.         */
+/* -------------------------------------------------------------------------- */
+
+export const logout = asyncHandler(async (req: Request, res: Response) => {
+  const raw = readRefreshCookie(req)
+  if (raw) {
+    const session = await Session.findOne({ tokenHash: hashToken(raw) })
+    // Revoke the family so no rotation of this session can be refreshed again.
+    if (session) await revokeFamily(session.familyId)
+  }
+  // Always clear the cookie and return success — don't reveal whether the token
+  // was known, and make repeated logouts safe.
+  clearRefreshCookie(res)
+  res.json({ success: true, message: 'Logged out' })
+})
+
+/* -------------------------------------------------------------------------- */
 /*  GET /api/auth/me  (protected)                                             */
 /* -------------------------------------------------------------------------- */
 

@@ -4,6 +4,7 @@ import {
   login,
   verifyLoginMfa,
   refresh,
+  logout,
   getMe,
   updateProfile,
   updateProfilePhoto,
@@ -30,6 +31,10 @@ router.post('/login/mfa', loginLimiter, verifyLoginMfa)
 // Rotates the token and returns a fresh access token. authLimiter (router-level)
 // bounds abuse.
 router.post('/refresh', refresh)
+
+// Logout — revokes the session family + clears the cookie. Works off the refresh
+// cookie so it succeeds even with an expired access token. No auth required.
+router.post('/logout', logout)
 
 // Protected — require valid JWT
 router.get('/me', authMiddleware, getMe)
