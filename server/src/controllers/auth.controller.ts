@@ -13,6 +13,7 @@ import { deleteFromCloudinary, uploadToCloudinary } from '../utils/cloudinary'
 import { decrypt } from '../utils/crypto'
 import { verifyTotp, matchAndConsumeBackupCode } from '../utils/mfa'
 import { validatePassword, isPasswordExpired } from '../utils/passwordPolicy'
+import { verifyHcaptcha } from '../utils/hcaptcha'
 import { hashToken, hashUserAgent } from '../utils/refreshToken'
 import {
   issueSession,
@@ -56,16 +57,25 @@ const sanitizeUser = (u: IUser) => ({
 /* -------------------------------------------------------------------------- */
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
-  const { name, email, password, phone } = req.body as {
+  const { name, email, password, phone, captchaToken } = req.body as {
     name?: string
     email?: string
     password?: string
     phone?: string
+    captchaToken?: string
   }
 
   // Basic input validation — keep it simple, no validation library needed yet
   if (!name || !email || !password) {
     res.status(400).json({ success: false, message: 'name, email, and password are required' })
+    return
+  }
+
+  // CAPTCHA (Feature 2) — registration is always gated. Verified server-side; a
+  // client-side pass is never trusted. captchaRequired lets the client know to
+  // show / reset the widget.
+  if (!(await verifyHcaptcha(captchaToken, req.ip))) {
+    res.status(400).json({ success: false, captchaRequired: true, message: 'CAPTCHA verification failed' })
     return
   }
 
