@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   Heart,
   Home,
+  KeyRound,
   LayoutDashboard,
   ListPlus,
   LogOut,
@@ -31,6 +32,7 @@ const userNav: NavItem[] = [
   { href: '/dashboard/wishlist', label: 'Wishlist', Icon: Heart },
   { href: '/dashboard/messages', label: 'Messages', Icon: MessageSquare },
   { href: '/dashboard/profile', label: 'Profile', Icon: UserIcon },
+  { href: '/dashboard/change-password', label: 'Change Password', Icon: KeyRound },
 ]
 
 const ownerNav: NavItem[] = [
@@ -42,6 +44,7 @@ const ownerNav: NavItem[] = [
   { href: '/dashboard/messages', label: 'Messages', Icon: MessageSquare },
   { href: '/dashboard/my-listings/new', label: 'Add New Listing', Icon: ListPlus },
   { href: '/dashboard/profile', label: 'Profile', Icon: UserIcon },
+  { href: '/dashboard/change-password', label: 'Change Password', Icon: KeyRound },
 ]
 
 interface SidebarProps {

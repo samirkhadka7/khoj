@@ -10,6 +10,7 @@ import { Mail, Lock, User as UserIcon, Eye, EyeOff, Phone, UserPlus, Loader2 } f
 import api, { setAccessToken } from '@/lib/axios'
 import { AuthShell } from '@/components/auth/AuthShell'
 import { GoogleButton } from '@/components/auth/GoogleButton'
+import { PasswordStrengthMeter } from '@/components/auth/PasswordStrengthMeter'
 import type { ApiResponse, RegisterDTO, User } from '@/types'
 
 interface RegisterFormValues {
@@ -29,8 +30,12 @@ export default function RegisterPage() {
   const {
     register: field,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting, isValid },
   } = useForm<RegisterFormValues>({ mode: 'onChange' })
+
+  // Live value for the strength meter (updates as the user types).
+  const passwordValue = watch('password') || ''
 
   const onSubmit = async (values: RegisterFormValues) => {
     try {
@@ -143,10 +148,18 @@ export default function RegisterPage() {
             <input
               type={showPw ? 'text' : 'password'}
               autoComplete="new-password"
-              placeholder="At least 6 characters"
+              placeholder="At least 12 characters"
               {...field('password', {
                 required: 'Password is required',
-                minLength: { value: 6, message: 'Password must be at least 6 characters' },
+                // Mirror the server policy so the form can't submit an invalid one.
+                minLength: { value: 12, message: 'Password must be at least 12 characters' },
+                maxLength: { value: 128, message: 'Password must be at most 128 characters' },
+                validate: (v) =>
+                  (/[a-z]/.test(v) &&
+                    /[A-Z]/.test(v) &&
+                    /[0-9]/.test(v) &&
+                    /[^A-Za-z0-9]/.test(v)) ||
+                  'Include upper, lower, number, and a special character',
               })}
               className={`${inputCls(!!errors.password)} pl-10 pr-11`}
             />
@@ -162,6 +175,8 @@ export default function RegisterPage() {
           {errors.password && (
             <p className="mt-1 text-[12px] text-red-600">{errors.password.message}</p>
           )}
+          {/* Real-time strength feedback (zxcvbn + policy checklist) */}
+          <PasswordStrengthMeter password={passwordValue} />
         </div>
 
         {/* Phone with +977 prefix */}
