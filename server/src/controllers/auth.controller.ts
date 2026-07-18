@@ -14,6 +14,7 @@ import { decrypt } from '../utils/crypto'
 import { verifyTotp, matchAndConsumeBackupCode } from '../utils/mfa'
 import { validatePassword, isPasswordExpired } from '../utils/passwordPolicy'
 import { verifyHcaptcha } from '../utils/hcaptcha'
+import { audit } from '../utils/audit'
 import {
   isCaptchaRequiredForLogin,
   recordLoginFailure,
@@ -123,6 +124,8 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 
   const token = signToken({ userId: user._id.toString(), role: user.role })
 
+  audit({ action: 'auth.register', actorId: user._id.toString(), ip: req.ip, outcome: 'success' })
+
   res.status(201).json({
     success: true,
     data: { token, user: sanitizeUser(user) },
@@ -163,6 +166,8 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 
   if (!user) {
     recordLoginFailure(req.ip)
+    // No actorId — the email didn't match a real account (no enumeration in logs either).
+    audit({ action: 'auth.login.failure', ip: req.ip, outcome: 'failure', meta: { reason: 'no_user' } })
     // Don't tell the client whether email or password was wrong — prevents email enumeration
     res.status(401).json({
       success: false,
@@ -173,6 +178,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   }
 
   if (user.isBanned) {
+    audit({ action: 'auth.login.blocked', actorId: user._id.toString(), ip: req.ip, outcome: 'failure', meta: { reason: 'banned' } })
     res.status(403).json({ success: false, message: 'This account has been banned' })
     return
   }
@@ -180,6 +186,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   const passwordMatches = await bcrypt.compare(password, user.passwordHash)
   if (!passwordMatches) {
     recordLoginFailure(req.ip)
+    audit({ action: 'auth.login.failure', actorId: user._id.toString(), ip: req.ip, outcome: 'failure', meta: { reason: 'invalid_password' } })
     res.status(401).json({
       success: false,
       message: 'Invalid credentials',
@@ -205,6 +212,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   // session is issued; a scoped reset token forces a change first. (For MFA users
   // this is checked in verifyLoginMfa, i.e. AFTER the second factor.)
   if (isPasswordExpired(user.passwordChangedAt)) {
+    audit({ action: 'auth.password.expired', actorId: user._id.toString(), ip: req.ip, outcome: 'failure' })
     const resetToken = signPasswordReset(user._id.toString())
     res.json({ success: true, data: { passwordExpired: true, resetToken } })
     return
@@ -213,6 +221,8 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   const token = signToken({ userId: user._id.toString(), role: user.role })
   // Start a session family + set the HttpOnly refresh cookie (Feature 5).
   await issueSession(user._id.toString(), req, res)
+
+  audit({ action: 'auth.login.success', actorId: user._id.toString(), ip: req.ip, outcome: 'success', meta: { mfa: false } })
 
   res.json({
     success: true,
@@ -247,6 +257,7 @@ export const verifyLoginMfa = asyncHandler(async (req: Request, res: Response) =
   // Per-token brute-force cap (C4): a single challenge can't be guessed more than
   // N times, even from rotating IPs — closes the "same mfaToken, many wrong codes" gap.
   if (mfaAttemptsExceeded(mfaToken)) {
+    audit({ action: 'auth.mfa.verify.failure', actorId: userId, ip: req.ip, outcome: 'failure', meta: { reason: 'too_many_attempts' } })
     res.status(401).json({ success: false, message: 'Too many attempts — please log in again' })
     return
   }
@@ -267,12 +278,14 @@ export const verifyLoginMfa = asyncHandler(async (req: Request, res: Response) =
   const backupIdx = totpOk ? -1 : await matchAndConsumeBackupCode(code, user.mfaBackupCodes)
   if (!totpOk && backupIdx === -1) {
     recordMfaFailure(mfaToken)
+    audit({ action: 'auth.mfa.verify.failure', actorId: userId, ip: req.ip, outcome: 'failure', meta: { reason: 'invalid_code' } })
     res.status(401).json({ success: false, message: 'Invalid authentication code' })
     return
   }
 
   // Correct code — clear this token's attempt counter.
   clearMfaAttempts(mfaToken)
+  audit({ action: 'auth.mfa.verify.success', actorId: userId, ip: req.ip, outcome: 'success' })
 
   // Persist the consumed backup code so it can't be reused.
   if (backupIdx !== -1) {
@@ -291,6 +304,9 @@ export const verifyLoginMfa = asyncHandler(async (req: Request, res: Response) =
   const token = signToken({ userId: user._id.toString(), role: user.role })
   // Second factor passed — now issue the session + refresh cookie (Feature 5).
   await issueSession(user._id.toString(), req, res)
+
+  audit({ action: 'auth.login.success', actorId: user._id.toString(), ip: req.ip, outcome: 'success', meta: { mfa: true, usedBackupCode: backupIdx !== -1 } })
+
   res.json({
     success: true,
     data: { token, user: sanitizeUser(user), usedBackupCode: backupIdx !== -1 },
@@ -324,6 +340,7 @@ export const refresh = asyncHandler(async (req: Request, res: Response) => {
   if (session.usedAt || session.revokedAt) {
     await revokeFamily(session.familyId)
     clearRefreshCookie(res)
+    audit({ action: 'auth.session.reuse_detected', actorId: session.userId.toString(), ip: req.ip, outcome: 'failure', meta: { familyId: session.familyId } })
     res.status(401).json({ success: false, message: 'Session reuse detected — please log in again' })
     return
   }
@@ -371,14 +388,19 @@ export const refresh = asyncHandler(async (req: Request, res: Response) => {
 
 export const logout = asyncHandler(async (req: Request, res: Response) => {
   const raw = readRefreshCookie(req)
+  let actorId: string | undefined
   if (raw) {
     const session = await Session.findOne({ tokenHash: hashToken(raw) })
     // Revoke the family so no rotation of this session can be refreshed again.
-    if (session) await revokeFamily(session.familyId)
+    if (session) {
+      actorId = session.userId.toString()
+      await revokeFamily(session.familyId)
+    }
   }
   // Always clear the cookie and return success — don't reveal whether the token
   // was known, and make repeated logouts safe.
   clearRefreshCookie(res)
+  audit({ action: 'auth.logout', actorId, ip: req.ip, outcome: 'success' })
   res.json({ success: true, message: 'Logged out' })
 })
 
@@ -446,6 +468,8 @@ export const changePassword = asyncHandler(async (req: Request, res: Response) =
   }
   await revokeUserSessionsExcept(user._id.toString(), keepFamilyId)
 
+  audit({ action: 'auth.password.change', actorId: user._id.toString(), ip: req.ip, outcome: 'success' })
+
   res.json({ success: true, message: 'Password changed. Other sessions have been signed out.' })
 })
 
@@ -508,6 +532,9 @@ export const resetExpiredPassword = asyncHandler(async (req: Request, res: Respo
   await revokeUserSessionsExcept(user._id.toString())
   const token = signToken({ userId: user._id.toString(), role: user.role })
   await issueSession(user._id.toString(), req, res)
+
+  audit({ action: 'auth.password.reset', actorId: user._id.toString(), ip: req.ip, outcome: 'success' })
+
   res.json({ success: true, data: { token, user: sanitizeUser(user) } })
 })
 

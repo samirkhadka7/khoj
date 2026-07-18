@@ -2,6 +2,7 @@ import type { Request, Response } from 'express'
 import { User } from '../models'
 import { asyncHandler } from '../utils/asyncHandler'
 import { encrypt, decrypt } from '../utils/crypto'
+import { audit } from '../utils/audit'
 import {
   generateTotpSecret,
   buildOtpAuthUrl,
@@ -96,6 +97,8 @@ export const enableMfa = asyncHandler(async (req: Request, res: Response) => {
     }
   )
 
+  audit({ action: 'auth.mfa.enroll', actorId: req.user!.userId, ip: req.ip, outcome: 'success' })
+
   res.json({
     success: true,
     data: {
@@ -145,6 +148,8 @@ export const disableMfa = asyncHandler(async (req: Request, res: Response) => {
       $unset: { mfaSecret: 1, mfaPendingSecret: 1, mfaBackupCodes: 1, mfaEnabledAt: 1 },
     }
   )
+
+  audit({ action: 'auth.mfa.disable', actorId: req.user!.userId, ip: req.ip, outcome: 'success' })
 
   res.json({ success: true, data: { mfaEnabled: false } })
 })
