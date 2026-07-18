@@ -12,6 +12,7 @@ import {
   issueSession,
   rotateSession,
   revokeFamily,
+  revokeUserSessionsExcept,
   readRefreshCookie,
   clearRefreshCookie,
 } from '../utils/session'
@@ -297,6 +298,73 @@ export const logout = asyncHandler(async (req: Request, res: Response) => {
   // was known, and make repeated logouts safe.
   clearRefreshCookie(res)
   res.json({ success: true, message: 'Logged out' })
+})
+
+/* -------------------------------------------------------------------------- */
+/*  POST /api/auth/change-password  (protected)                               */
+/*  Requires the current password, enforces the policy + reuse history, and    */
+/*  signs out every OTHER session (a password change is a good moment to kill   */
+/*  sessions on devices the user may no longer control).                       */
+/* -------------------------------------------------------------------------- */
+
+export const changePassword = asyncHandler(async (req: Request, res: Response) => {
+  const { currentPassword, newPassword } = req.body as {
+    currentPassword?: string
+    newPassword?: string
+  }
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ success: false, message: 'currentPassword and newPassword are required' })
+    return
+  }
+
+  const user = await User.findById(req.user!.userId).select('+passwordHash +passwordHistory')
+  if (!user) {
+    res.status(404).json({ success: false, message: 'User not found' })
+    return
+  }
+
+  // 1. Verify the current password.
+  if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
+    res.status(401).json({ success: false, message: 'Current password is incorrect' })
+    return
+  }
+
+  // 2. New password must satisfy the policy.
+  const policy = validatePassword(newPassword)
+  if (!policy.valid) {
+    res.status(400).json({ success: false, message: policy.errors[0], errors: policy.errors })
+    return
+  }
+
+  // 3. Reuse prevention — reject if it matches any of the last 5 (history includes
+  //    the current password; fall back to the current hash for legacy users).
+  const history = user.passwordHistory ?? [user.passwordHash]
+  for (const oldHash of history) {
+    if (await bcrypt.compare(newPassword, oldHash)) {
+      res.status(400).json({ success: false, message: 'You cannot reuse one of your last 5 passwords' })
+      return
+    }
+  }
+
+  // 4. Persist: new hash, trimmed history (keep last 5), fresh change timestamp.
+  const newHash = await bcrypt.hash(newPassword, SALT_ROUNDS)
+  const newHistory = [...history, newHash].slice(-5)
+  await User.updateOne(
+    { _id: user._id },
+    { $set: { passwordHash: newHash, passwordHistory: newHistory, passwordChangedAt: new Date() } }
+  )
+
+  // 5. Sign out OTHER sessions — keep this device's family (identified by its
+  //    refresh cookie) so the user who changed the password stays logged in here.
+  const raw = readRefreshCookie(req)
+  let keepFamilyId: string | undefined
+  if (raw) {
+    const current = await Session.findOne({ tokenHash: hashToken(raw) })
+    keepFamilyId = current?.familyId
+  }
+  await revokeUserSessionsExcept(user._id.toString(), keepFamilyId)
+
+  res.json({ success: true, message: 'Password changed. Other sessions have been signed out.' })
 })
 
 /* -------------------------------------------------------------------------- */

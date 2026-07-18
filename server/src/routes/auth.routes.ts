@@ -5,6 +5,7 @@ import {
   verifyLoginMfa,
   refresh,
   logout,
+  changePassword,
   getMe,
   updateProfile,
   updateProfilePhoto,
@@ -38,6 +39,7 @@ router.post('/logout', logout)
 
 // Protected — require valid JWT
 router.get('/me', authMiddleware, getMe)
+router.post('/change-password', authMiddleware, changePassword)
 router.put('/profile', authMiddleware, updateProfile)
 router.put('/profile-photo', authMiddleware, upload.single('image'), updateProfilePhoto)
 

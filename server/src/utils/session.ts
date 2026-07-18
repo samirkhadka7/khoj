@@ -87,3 +87,16 @@ export const rotateSession = async (
 export const revokeFamily = async (familyId: string): Promise<void> => {
   await Session.updateMany({ familyId }, { $set: { revokedAt: new Date() } })
 }
+
+/**
+ * Revoke all of a user's sessions, optionally KEEPING one family (the current
+ * device). Used on password change to sign out every OTHER session.
+ */
+export const revokeUserSessionsExcept = async (
+  userId: string,
+  keepFamilyId?: string
+): Promise<void> => {
+  const filter: Record<string, unknown> = { userId }
+  if (keepFamilyId) filter.familyId = { $ne: keepFamilyId }
+  await Session.updateMany(filter, { $set: { revokedAt: new Date() } })
+}
