@@ -6,6 +6,7 @@ import { asyncHandler } from '../utils/asyncHandler'
 import { deleteFromCloudinary, uploadToCloudinary } from '../utils/cloudinary'
 import { decrypt } from '../utils/crypto'
 import { verifyTotp, matchAndConsumeBackupCode } from '../utils/mfa'
+import { validatePassword } from '../utils/passwordPolicy'
 import { hashToken, hashUserAgent } from '../utils/refreshToken'
 import {
   issueSession,
@@ -61,8 +62,10 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     return
   }
 
-  if (password.length < 6) {
-    res.status(400).json({ success: false, message: 'Password must be at least 6 characters' })
+  const policy = validatePassword(password)
+  if (!policy.valid) {
+    // First error as `message` (backward-compatible) + full list for field-level UI.
+    res.status(400).json({ success: false, message: policy.errors[0], errors: policy.errors })
     return
   }
 
