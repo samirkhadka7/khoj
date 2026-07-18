@@ -11,6 +11,7 @@ import {
   listKyc,
   approveKyc,
   rejectKyc,
+  listAuditLogs,
 } from '../controllers/admin.controller'
 import { authMiddleware } from '../middleware/auth.middleware'
 import { requireRole } from '../middleware/role.middleware'
@@ -47,5 +48,8 @@ router.patch('/users/:id/unban', unbanUser)
 router.get('/kyc', listKyc)
 router.patch('/kyc/:id/approve', approveKyc)
 router.patch('/kyc/:id/reject', rejectKyc)
+
+// ---- Audit log viewer (Feature 6) ----
+router.get('/audit-logs', listAuditLogs)
 
 export default router

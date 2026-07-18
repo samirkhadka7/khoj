@@ -6,6 +6,7 @@ import {
   ContactRequest,
   Review,
   Kyc,
+  AuditLog,
   type IUser,
 } from '../models'
 import { asyncHandler } from '../utils/asyncHandler'
@@ -433,4 +434,45 @@ export const rejectKyc = asyncHandler(async (req: Request, res: Response) => {
   })
 
   res.json({ success: true, data: kyc })
+})
+
+/* -------------------------------------------------------------------------- */
+/*  GET /api/admin/audit-logs                                                  */
+/*  Admin-only viewer over the audit trail (Feature 6). MFA-gated + rate-       */
+/*  limited via the admin router. Filters: ?action (prefix), ?outcome,          */
+/*  ?actorId, ?since (ISO date), plus pagination.                              */
+/* -------------------------------------------------------------------------- */
+
+export const listAuditLogs = asyncHandler(async (req: Request, res: Response) => {
+  const page = Math.max(1, Number(req.query.page) || 1)
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 25))
+
+  const filter: Record<string, unknown> = {}
+  // Prefix match so ?action=login catches login.success AND login.failure, etc.
+  if (req.query.action) {
+    filter.action = new RegExp('^' + escapeRegex(String(req.query.action)))
+  }
+  if (req.query.outcome === 'success' || req.query.outcome === 'failure') {
+    filter.outcome = req.query.outcome
+  }
+  if (req.query.actorId && mongoose.isValidObjectId(String(req.query.actorId))) {
+    filter.actorId = req.query.actorId
+  }
+  const since = req.query.since ? new Date(String(req.query.since)) : null
+  if (since && !Number.isNaN(since.getTime())) {
+    filter.createdAt = { $gte: since }
+  }
+
+  const total = await AuditLog.countDocuments(filter)
+  const items = await AuditLog.find(filter)
+    .sort({ createdAt: -1 })
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .populate('actorId', 'name email role')
+
+  res.json({
+    success: true,
+    data: items,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) || 1 },
+  })
 })

@@ -29,3 +29,6 @@ export type { IKyc, IKycAddress } from './kyc.model'
 
 export { Session } from './session.model'
 export type { ISession } from './session.model'
+
+export { AuditLog } from './audit.model'
+export type { IAuditLog } from './audit.model'
