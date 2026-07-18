@@ -26,6 +26,22 @@ const app: Application = express()
 const PORT: number = Number(process.env.PORT) || 5050
 
 /* -------------------------------------------------------------------------- */
+/*  Trust proxy (Feature 2/C)                                                  */
+/* -------------------------------------------------------------------------- */
+// Behind Render (and the Next.js /api proxy) the real client IP is in
+// X-Forwarded-For. Trust EXACTLY the configured number of proxy hops so req.ip is
+// the real client — otherwise every user shares the proxy's IP and per-IP rate
+// limiting protects nothing (or over-blocks everyone). Default: 1 hop in prod,
+// off in dev (no proxy). Set TRUST_PROXY_HOPS to match the real deploy chain.
+// NEVER use `true`: it trusts any X-Forwarded-For and lets clients spoof their IP.
+const trustProxyHops: number | boolean = process.env.TRUST_PROXY_HOPS
+  ? Number(process.env.TRUST_PROXY_HOPS)
+  : process.env.NODE_ENV === 'production'
+    ? 1
+    : false
+app.set('trust proxy', trustProxyHops)
+
+/* -------------------------------------------------------------------------- */
 /*  Middleware                                                                */
 /* -------------------------------------------------------------------------- */
 
