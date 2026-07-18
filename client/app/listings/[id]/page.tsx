@@ -20,7 +20,7 @@ import {
   X,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import api, { TOKEN_KEY } from '@/lib/axios'
+import api, { getAccessToken, silentRefresh } from '@/lib/axios'
 import { Navbar } from '@/components/landing/Navbar'
 import { ContactRequestModal } from '@/components/listing-detail/ContactRequestModal'
 import {
@@ -101,7 +101,10 @@ export default function ListingDetailPage() {
    */
   const resolveViewerContext = useCallback(async () => {
     setCtaLoading(true)
-    const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
+    // Public page: a reloaded but logged-in visitor starts with no in-memory
+    // token, so try to restore the session from the refresh cookie first.
+    if (!getAccessToken()) await silentRefresh()
+    const token = getAccessToken()
     if (!token) {
       setCurrentUser(null)
       setExistingRequest(null)
@@ -184,7 +187,7 @@ export default function ListingDetailPage() {
 
   const handleWishlist = async () => {
     if (typeof window === 'undefined') return
-    const token = localStorage.getItem(TOKEN_KEY)
+    const token = getAccessToken()
     if (!token) {
       router.push(`/auth/login?redirect=/listings/${listingId}`)
       return

@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { Mail, Lock, Eye, EyeOff, LogIn, Loader2 } from 'lucide-react'
 
-import api, { TOKEN_KEY } from '@/lib/axios'
+import api, { setAccessToken } from '@/lib/axios'
 import { AuthShell } from '@/components/auth/AuthShell'
 import { GoogleButton } from '@/components/auth/GoogleButton'
 import type { ApiResponse, LoginDTO, User } from '@/types'
@@ -39,7 +39,8 @@ export default function LoginPage() {
         toast.error(data.message || 'Unable to sign in. Please try again.')
         return
       }
-      localStorage.setItem(TOKEN_KEY, data.data.token)
+      // Access token lives in memory only; the refresh cookie was set by the server.
+      setAccessToken(data.data.token)
       toast.success(`Welcome back, ${data.data.user.name.split(' ')[0]}!`)
       // Role-based landing — admins go to the admin console, everyone else
       // to the user-facing dashboard. Without this, admins land on /dashboard

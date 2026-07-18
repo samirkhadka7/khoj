@@ -22,7 +22,9 @@ export const signToken = (payload: JwtPayload): string => {
   // Cast keeps us compatible across @types/jsonwebtoken minor versions
   // (some versions tighten `expiresIn` to a branded StringValue type)
   const options: SignOptions = {
-    expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as SignOptions['expiresIn'],
+    // Short-lived ACCESS token (Feature 5) — the HttpOnly refresh cookie carries
+    // the long-lived session, and the client silently refreshes on expiry.
+    expiresIn: (process.env.JWT_EXPIRES_IN || '15m') as SignOptions['expiresIn'],
   }
   return jwt.sign(payload, getSecret(), options)
 }

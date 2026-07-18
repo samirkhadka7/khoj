@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { Mail, Lock, User as UserIcon, Eye, EyeOff, Phone, UserPlus, Loader2 } from 'lucide-react'
 
-import api, { TOKEN_KEY } from '@/lib/axios'
+import api, { setAccessToken } from '@/lib/axios'
 import { AuthShell } from '@/components/auth/AuthShell'
 import { GoogleButton } from '@/components/auth/GoogleButton'
 import type { ApiResponse, RegisterDTO, User } from '@/types'
@@ -48,7 +48,10 @@ export default function RegisterPage() {
         toast.error(data.message || 'Unable to create account.')
         return
       }
-      localStorage.setItem(TOKEN_KEY, data.data.token)
+      // Access token in memory only. NOTE: register does not set a refresh cookie
+      // (by design — session lifecycle starts at login), so a later reload will
+      // require signing in again.
+      setAccessToken(data.data.token)
       toast.success(`Welcome to BaasKhoj, ${data.data.user.name.split(' ')[0]}!`)
       router.push('/dashboard')
     } catch (err: unknown) {

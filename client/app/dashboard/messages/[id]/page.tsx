@@ -7,7 +7,7 @@ import { io, type Socket } from 'socket.io-client'
 import { Loader2, Lock } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-import api, { TOKEN_KEY } from '@/lib/axios'
+import api, { getAccessToken } from '@/lib/axios'
 import { useDashboardUser } from '@/components/dashboard/DashboardContext'
 import { ChatHeader } from '@/components/messages/ChatHeader'
 import { MessageList } from '@/components/messages/MessageList'
@@ -95,7 +95,7 @@ export default function ChatThreadPage() {
   useEffect(() => {
     if (loading || accessError || !request) return
 
-    const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
+    const token = getAccessToken()
     if (!token) return
 
     const socket = io(SOCKET_URL, {
