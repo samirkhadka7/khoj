@@ -3,8 +3,12 @@ import { submitKyc, getKycStatus, getKycDocuments } from '../controllers/kyc.con
 import { authMiddleware } from '../middleware/auth.middleware'
 import { requireMfaForPrivileged } from '../middleware/mfa.middleware'
 import { kycUpload } from '../middleware/upload.middleware'
+import { generalLimiter, strictLimiter } from '../utils/rateLimit'
 
 const router = Router()
+
+// Per-IP cap on all KYC traffic; submission adds a strict low-volume cap.
+router.use(generalLimiter)
 
 // All KYC routes require auth — user submitting is always logged in
 router.use(authMiddleware)
@@ -21,6 +25,7 @@ router.get('/:id/documents', requireMfaForPrivileged, getKycDocuments)
 // 3 distinct file fields, parsed by multer.fields()
 router.post(
   '/submit',
+  strictLimiter,
   kycUpload.fields([
     { name: 'citizenshipFront', maxCount: 1 },
     { name: 'citizenshipBack', maxCount: 1 },

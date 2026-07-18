@@ -17,8 +17,13 @@ import { authMiddleware } from '../middleware/auth.middleware'
 import { requireRole } from '../middleware/role.middleware'
 import { requireMfaForPrivileged } from '../middleware/mfa.middleware'
 import { upload } from '../middleware/upload.middleware'
+import { generalLimiter, writeLimiter } from '../utils/rateLimit'
 
 const router = Router()
+
+// Baseline per-IP cap for all listing traffic (reads included). Mutations layer a
+// tighter writeLimiter on top.
+router.use(generalLimiter)
 
 /**
  * IMPORTANT: more specific routes must come BEFORE the parameterized /:id route.
@@ -39,6 +44,7 @@ router.get('/:id', getListing)
 // in the field named "images". Other text fields land in req.body as strings.
 router.post(
   '/',
+  writeLimiter,
   authMiddleware,
   requireRole('owner', 'admin'),
   requireMfaForPrivileged,
@@ -48,6 +54,7 @@ router.post(
 
 router.put(
   '/:id',
+  writeLimiter,
   authMiddleware,
   requireRole('owner', 'admin'),
   requireMfaForPrivileged,

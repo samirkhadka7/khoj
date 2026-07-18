@@ -81,3 +81,28 @@ export const authLimiter = rateLimit({
   handler: buildHandler('15 minutes'),
   skip: isDisabled,
 })
+
+/* -------------------------------------------------------------------------- */
+/*  General-purpose limiters for the rest of the API (Feature 2/C).            */
+/*  Per-route thresholds — a browse endpoint is generous, a mutation is tight,  */
+/*  but nothing is unlimited.                                                   */
+/* -------------------------------------------------------------------------- */
+
+const createLimiter = (max: number, humanWindow = '15 minutes', windowMs = 15 * 60 * 1000) =>
+  rateLimit({
+    windowMs,
+    max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: buildHandler(humanWindow),
+    skip: isDisabled,
+  })
+
+/** Read-heavy routers (listings, messages, notifications, review reads). */
+export const generalLimiter = createLimiter(200)
+/** Mutations that shouldn't be spammed (contact-request send, review create, listing writes). */
+export const writeLimiter = createLimiter(30)
+/** Sensitive low-volume writes (KYC submission). */
+export const strictLimiter = createLimiter(10)
+/** Admin panel — moderate cap across all admin actions. */
+export const adminLimiter = createLimiter(150)

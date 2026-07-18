@@ -15,8 +15,12 @@ import {
 import { authMiddleware } from '../middleware/auth.middleware'
 import { requireRole } from '../middleware/role.middleware'
 import { requireMfaForPrivileged } from '../middleware/mfa.middleware'
+import { adminLimiter } from '../utils/rateLimit'
 
 const router = Router()
+
+// Per-IP cap on all admin traffic (before auth, so floods are capped regardless).
+router.use(adminLimiter)
 
 // Every admin route requires auth + admin role + MFA enabled. Admin actions are
 // the highest-impact surface (KYC approval, bans), so the whole router — reads

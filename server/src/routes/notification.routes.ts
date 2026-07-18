@@ -6,8 +6,12 @@ import {
   markAllAsRead,
 } from '../controllers/notification.controller'
 import { authMiddleware } from '../middleware/auth.middleware'
+import { generalLimiter } from '../utils/rateLimit'
 
 const router = Router()
+
+// Per-IP cap (the bell polls these, so a general/generous limit).
+router.use(generalLimiter)
 
 // Every notification route requires auth
 router.use(authMiddleware)
