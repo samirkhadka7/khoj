@@ -87,6 +87,9 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     name: name.trim(),
     email: normalizedEmail,
     passwordHash,
+    // Seed the reuse-history with the initial password + stamp the change time.
+    passwordHistory: [passwordHash],
+    passwordChangedAt: new Date(),
     role: safeRole,
     // Phone is optional at register but the new form prompts for it.
     // The schema's regex enforces format if provided.

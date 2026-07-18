@@ -10,6 +10,11 @@ export interface IUser {
   name: string
   email: string
   passwordHash: string
+  // --- Password policy (Feature 3) ---
+  // When the password was last set — used for the 90-day expiry check on login.
+  passwordChangedAt: Date
+  // Last 5 password hashes (incl. the current one), to block reuse. select:false.
+  passwordHistory?: string[]
   role: UserRole
   phone?: string
   isPhoneVerified: boolean
@@ -56,6 +61,11 @@ const userSchema = new Schema<IUser>(
       // Never sent in query results unless explicitly .select('+passwordHash')
       select: false,
     },
+    // --- Password policy (Feature 3) ---
+    // Defaulted so seeded/existing users get a value too (treated as "just set").
+    passwordChangedAt: { type: Date, default: Date.now },
+    // Reuse-prevention history (last 5 hashes, current included). Hidden by default.
+    passwordHistory: { type: [String], select: false, default: undefined },
     role: {
       type: String,
       enum: ['user', 'owner', 'admin'],
