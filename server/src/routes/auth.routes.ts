@@ -24,9 +24,12 @@ router.use(authLimiter)
 
 // Public — no token needed
 router.post('/register', register)
-router.post('/login', loginLimiter, login)
-// Step 2 of MFA login — same per-IP failed-attempt limiter as /login so brute
-// forcing the 6-digit code shares the existing threshold (no second, inconsistent one).
+// /login uses CAPTCHA-after-N-failures (same 5-fail threshold) instead of a hard
+// block, so a legitimate user isn't locked out — the router-level authLimiter is
+// still the hard volume ceiling. See loginAttempts.ts + login controller.
+router.post('/login', login)
+// Step 2 of MFA login keeps the per-IP failed-attempt limiter (5 / 15 min) so
+// brute forcing the 6-digit code is bounded.
 router.post('/login/mfa', loginLimiter, verifyLoginMfa)
 
 // Refresh — the HttpOnly refresh cookie is the credential (no Bearer token).

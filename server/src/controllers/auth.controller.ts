@@ -14,6 +14,11 @@ import { decrypt } from '../utils/crypto'
 import { verifyTotp, matchAndConsumeBackupCode } from '../utils/mfa'
 import { validatePassword, isPasswordExpired } from '../utils/passwordPolicy'
 import { verifyHcaptcha } from '../utils/hcaptcha'
+import {
+  isCaptchaRequiredForLogin,
+  recordLoginFailure,
+  resetLoginAttempts,
+} from '../utils/loginAttempts'
 import { hashToken, hashUserAgent } from '../utils/refreshToken'
 import {
   issueSession,
@@ -126,19 +131,41 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 /* -------------------------------------------------------------------------- */
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
-  const { email, password } = req.body as { email?: string; password?: string }
+  const { email, password, captchaToken } = req.body as {
+    email?: string
+    password?: string
+    captchaToken?: string
+  }
 
   if (!email || !password) {
     res.status(400).json({ success: false, message: 'Email and password are required' })
     return
   }
 
+  // Brute-force gate (Feature 2): once this IP has hit the failed-attempt
+  // threshold, a valid CAPTCHA is required before we even check the password.
+  if (isCaptchaRequiredForLogin(req.ip)) {
+    if (!(await verifyHcaptcha(captchaToken, req.ip))) {
+      res.status(400).json({
+        success: false,
+        captchaRequired: true,
+        message: 'Please complete the CAPTCHA to continue',
+      })
+      return
+    }
+  }
+
   // Schema sets `select: false` on passwordHash, so we have to opt in here
   const user = await User.findOne({ email: email.toLowerCase().trim() }).select('+passwordHash')
 
   if (!user) {
+    recordLoginFailure(req.ip)
     // Don't tell the client whether email or password was wrong — prevents email enumeration
-    res.status(401).json({ success: false, message: 'Invalid credentials' })
+    res.status(401).json({
+      success: false,
+      message: 'Invalid credentials',
+      captchaRequired: isCaptchaRequiredForLogin(req.ip),
+    })
     return
   }
 
@@ -149,9 +176,17 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 
   const passwordMatches = await bcrypt.compare(password, user.passwordHash)
   if (!passwordMatches) {
-    res.status(401).json({ success: false, message: 'Invalid credentials' })
+    recordLoginFailure(req.ip)
+    res.status(401).json({
+      success: false,
+      message: 'Invalid credentials',
+      captchaRequired: isCaptchaRequiredForLogin(req.ip),
+    })
     return
   }
+
+  // Correct credentials — clear this IP's failed-attempt counter.
+  resetLoginAttempts(req.ip)
 
   // --- MFA gate (Feature 1) ---
   // If MFA is enabled, the password alone is NOT enough. We withhold the session
