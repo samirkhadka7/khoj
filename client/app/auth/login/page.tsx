@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
+import HCaptcha from '@hcaptcha/react-hcaptcha'
 import { Mail, Lock, Eye, EyeOff, LogIn, Loader2 } from 'lucide-react'
 
 import api, { setAccessToken } from '@/lib/axios'
@@ -18,10 +19,18 @@ interface LoginFormValues {
 }
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// Dev falls back to hCaptcha's always-pass TEST sitekey; prod sets the real one.
+const HCAPTCHA_SITEKEY =
+  process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY || '10000000-ffff-ffff-ffff-000000000001'
 
 export default function LoginPage() {
   const router = useRouter()
   const [showPw, setShowPw] = useState(false)
+  // The widget appears only after the server says a CAPTCHA is required (i.e. once
+  // this IP has crossed the failed-attempt threshold) — not on every attempt.
+  const [captchaRequired, setCaptchaRequired] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const captchaRef = useRef<HCaptcha>(null)
 
   const {
     register,
@@ -30,10 +39,14 @@ export default function LoginPage() {
   } = useForm<LoginFormValues>({ mode: 'onChange' })
 
   const onSubmit = async (values: LoginFormValues) => {
+    if (captchaRequired && !captchaToken) {
+      toast.error('Please complete the CAPTCHA.')
+      return
+    }
     try {
       const { data } = await api.post<ApiResponse<{ token: string; user: User }>>(
         '/api/auth/login',
-        values satisfies LoginDTO,
+        { ...(values satisfies LoginDTO), ...(captchaRequired ? { captchaToken } : {}) },
       )
       if (!data.success || !data.data) {
         toast.error(data.message || 'Unable to sign in. Please try again.')
@@ -48,7 +61,16 @@ export default function LoginPage() {
       router.push(data.data.user.role === 'admin' ? '/admin' : '/dashboard')
     } catch (err: unknown) {
       // Narrow the unknown to the axios-style error shape we actually expect
-      const e = err as { response?: { data?: { message?: string } }; message?: string }
+      const e = err as {
+        response?: { data?: { message?: string; captchaRequired?: boolean } }
+        message?: string
+      }
+      // Once the server flags captchaRequired, show the widget and reset any spent token.
+      if (e.response?.data?.captchaRequired) {
+        setCaptchaRequired(true)
+        setCaptchaToken(null)
+        captchaRef.current?.resetCaptcha()
+      }
       const msg =
         e.response?.data?.message ||
         e.message ||
@@ -57,7 +79,7 @@ export default function LoginPage() {
     }
   }
 
-  const submitDisabled = isSubmitting || !isValid
+  const submitDisabled = isSubmitting || !isValid || (captchaRequired && !captchaToken)
 
   return (
     <AuthShell
@@ -147,6 +169,19 @@ export default function LoginPage() {
             Forgot password?
           </Link>
         </div>
+
+        {/* CAPTCHA — only shown after the server flags too many failed attempts */}
+        {captchaRequired && (
+          <div className="mb-4 flex justify-center">
+            <HCaptcha
+              ref={captchaRef}
+              sitekey={HCAPTCHA_SITEKEY}
+              onVerify={(token) => setCaptchaToken(token)}
+              onExpire={() => setCaptchaToken(null)}
+              onError={() => setCaptchaToken(null)}
+            />
+          </div>
+        )}
 
         {/* Submit */}
         <button

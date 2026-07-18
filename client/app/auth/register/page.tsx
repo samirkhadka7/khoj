@@ -2,15 +2,20 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
+import HCaptcha from '@hcaptcha/react-hcaptcha'
 import { Mail, Lock, User as UserIcon, Eye, EyeOff, Phone, UserPlus, Loader2 } from 'lucide-react'
 
 import api, { setAccessToken } from '@/lib/axios'
 import { AuthShell } from '@/components/auth/AuthShell'
 import { GoogleButton } from '@/components/auth/GoogleButton'
 import { PasswordStrengthMeter } from '@/components/auth/PasswordStrengthMeter'
+
+// Dev falls back to hCaptcha's always-pass TEST sitekey; prod sets the real one.
+const HCAPTCHA_SITEKEY =
+  process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY || '10000000-ffff-ffff-ffff-000000000001'
 import type { ApiResponse, RegisterDTO, User } from '@/types'
 
 interface RegisterFormValues {
@@ -26,6 +31,8 @@ const PHONE_REGEX = /^9\d{9}$/
 export default function RegisterPage() {
   const router = useRouter()
   const [showPw, setShowPw] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const captchaRef = useRef<HCaptcha>(null)
 
   const {
     register: field,
@@ -38,6 +45,10 @@ export default function RegisterPage() {
   const passwordValue = watch('password') || ''
 
   const onSubmit = async (values: RegisterFormValues) => {
+    if (!captchaToken) {
+      toast.error('Please complete the CAPTCHA.')
+      return
+    }
     try {
       const payload: RegisterDTO = {
         name: values.name.trim(),
@@ -47,7 +58,7 @@ export default function RegisterPage() {
       }
       const { data } = await api.post<ApiResponse<{ token: string; user: User }>>(
         '/api/auth/register',
-        payload
+        { ...payload, captchaToken }
       )
       if (!data.success || !data.data) {
         toast.error(data.message || 'Unable to create account.')
@@ -61,11 +72,14 @@ export default function RegisterPage() {
       router.push('/dashboard')
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } }; message?: string }
+      // The token is single-use — reset the widget so the user can get a new one.
+      setCaptchaToken(null)
+      captchaRef.current?.resetCaptcha()
       toast.error(e.response?.data?.message || e.message || 'Registration failed.')
     }
   }
 
-  const submitDisabled = isSubmitting || !isValid
+  const submitDisabled = isSubmitting || !isValid || !captchaToken
 
   return (
     <AuthShell
@@ -203,6 +217,17 @@ export default function RegisterPage() {
             />
           </div>
           {errors.phone && <p className="mt-1 text-[12px] text-red-600">{errors.phone.message}</p>}
+        </div>
+
+        {/* CAPTCHA — required for registration (verified server-side) */}
+        <div className="mb-4 flex justify-center">
+          <HCaptcha
+            ref={captchaRef}
+            sitekey={HCAPTCHA_SITEKEY}
+            onVerify={(token) => setCaptchaToken(token)}
+            onExpire={() => setCaptchaToken(null)}
+            onError={() => setCaptchaToken(null)}
+          />
         </div>
 
         {/* Submit */}
