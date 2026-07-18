@@ -18,6 +18,9 @@ import {
   isCaptchaRequiredForLogin,
   recordLoginFailure,
   resetLoginAttempts,
+  mfaAttemptsExceeded,
+  recordMfaFailure,
+  clearMfaAttempts,
 } from '../utils/loginAttempts'
 import { hashToken, hashUserAgent } from '../utils/refreshToken'
 import {
@@ -241,6 +244,13 @@ export const verifyLoginMfa = asyncHandler(async (req: Request, res: Response) =
     return
   }
 
+  // Per-token brute-force cap (C4): a single challenge can't be guessed more than
+  // N times, even from rotating IPs — closes the "same mfaToken, many wrong codes" gap.
+  if (mfaAttemptsExceeded(mfaToken)) {
+    res.status(401).json({ success: false, message: 'Too many attempts — please log in again' })
+    return
+  }
+
   const user = await User.findById(userId).select('+mfaSecret +mfaBackupCodes')
   if (!user || !user.mfaEnabled || !user.mfaSecret) {
     res.status(401).json({ success: false, message: 'MFA is not active for this account' })
@@ -256,9 +266,13 @@ export const verifyLoginMfa = asyncHandler(async (req: Request, res: Response) =
   const totpOk = await verifyTotp(code, decrypt(user.mfaSecret))
   const backupIdx = totpOk ? -1 : await matchAndConsumeBackupCode(code, user.mfaBackupCodes)
   if (!totpOk && backupIdx === -1) {
+    recordMfaFailure(mfaToken)
     res.status(401).json({ success: false, message: 'Invalid authentication code' })
     return
   }
+
+  // Correct code — clear this token's attempt counter.
+  clearMfaAttempts(mfaToken)
 
   // Persist the consumed backup code so it can't be reused.
   if (backupIdx !== -1) {

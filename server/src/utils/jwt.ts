@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import jwt, { type Secret, type SignOptions } from 'jsonwebtoken'
 import type { UserRole } from '../types'
 
@@ -51,7 +52,10 @@ export interface MfaChallengePayload {
 }
 
 export const signMfaChallenge = (userId: string): string => {
-  const options: SignOptions = { expiresIn: '5m' } // just long enough to type a code
+  // jwtid (random) makes every challenge UNIQUE — without it, two logins in the
+  // same second produce identical tokens, so a fresh challenge could inherit a
+  // burned token's per-token attempt counter (C4).
+  const options: SignOptions = { expiresIn: '5m', jwtid: crypto.randomUUID() }
   return jwt.sign({ userId, purpose: 'mfa' }, getSecret(), options)
 }
 
@@ -74,7 +78,7 @@ export interface PasswordResetPayload {
 }
 
 export const signPasswordReset = (userId: string): string => {
-  const options: SignOptions = { expiresIn: '15m' }
+  const options: SignOptions = { expiresIn: '15m', jwtid: crypto.randomUUID() }
   return jwt.sign({ userId, purpose: 'pwreset' }, getSecret(), options)
 }
 
