@@ -15,7 +15,9 @@ import { MessageInput } from '@/components/messages/MessageInput'
 import type { ChatAck, ChatMessage } from '@/components/messages/types'
 import type { ApiResponse, ContactRequest, Listing, User } from '@/types'
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050'
+// Socket.io connects DIRECTLY to the backend (not through the /api proxy) — it
+// authenticates with the Bearer access token, so it doesn't need the cookie.
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5050'
 
 /**
  * Single chat thread.

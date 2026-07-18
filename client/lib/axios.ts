@@ -25,7 +25,11 @@ export const clearAccessToken = (): void => {
 }
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050',
+  // Same-origin by default: /api/* requests go to the app's own origin and are
+  // proxied to the backend by next.config rewrites, keeping the auth cookies
+  // first-party (needed for SameSite=Strict in prod). Set NEXT_PUBLIC_API_URL to
+  // a full URL only to bypass the proxy.
+  baseURL: process.env.NEXT_PUBLIC_API_URL || '',
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true, // send/receive the HttpOnly refresh cookie
 })
