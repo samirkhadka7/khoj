@@ -10,20 +10,20 @@ import type { Request, Response } from 'express'
  *   - Failed-only counting on the login limiter (successful logins don't burn
  *     attempts) so a user typing the right password 100 times in a row isn't
  *     locked out.
- *   - ENABLED ONLY in production. In dev/test we'd burn through the bucket
- *     during normal coding (typo your password 5× while testing? locked out
- *     for 15min). Production deploys set NODE_ENV=production, so prod traffic
- *     gets the protection without the dev pain.
- *   - Override either way via RATE_LIMIT_ENABLED=true / RATE_LIMIT_DISABLED=true.
+ *   - ON EVERYWHERE by default, including dev (Feature 2/C). The old
+ *     "off unless NODE_ENV==='production'" default meant the default dev/demo run
+ *     had NO throttling — that was the actual vulnerability, not a convenience.
+ *   - Only an EXPLICIT opt-out disables it (for one-off local debugging), via
+ *     RATE_LIMIT_ENABLED=false or RATE_LIMIT_DISABLED=true.
  */
 
 const isDisabled = (): boolean => {
-  // Manual force-on (override the dev default for testing the limiter itself)
-  if (process.env.RATE_LIMIT_ENABLED === 'true') return false
-  // Manual force-off (override prod for one-shot diagnostics)
+  // Explicit opt-out only — never the default. Used to silence the limiter for a
+  // one-off local debugging session; production must never set these.
+  if (process.env.RATE_LIMIT_ENABLED === 'false') return true
   if (process.env.RATE_LIMIT_DISABLED === 'true') return true
-  // Default: ON in production, OFF everywhere else
-  return process.env.NODE_ENV !== 'production'
+  // Default: ENABLED, in every environment.
+  return false
 }
 
 const buildHandler = (humanWindow: string) =>
