@@ -17,6 +17,16 @@ export interface PasswordPolicyResult {
   errors: string[]
 }
 
+/** Password max age for the 90-day expiry check (env-overridable, default 90 days). */
+export const passwordMaxAgeMs = (): number => {
+  const days = Number(process.env.PASSWORD_MAX_AGE_DAYS) || 90
+  return days * 24 * 60 * 60 * 1000
+}
+
+/** True if the password was last changed longer ago than the max age. */
+export const isPasswordExpired = (changedAt?: Date | null): boolean =>
+  !!changedAt && Date.now() - new Date(changedAt).getTime() > passwordMaxAgeMs()
+
 export const validatePassword = (pw: unknown): PasswordPolicyResult => {
   const errors: string[] = []
   const s = typeof pw === 'string' ? pw : ''

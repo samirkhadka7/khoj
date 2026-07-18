@@ -6,6 +6,7 @@ import {
   refresh,
   logout,
   changePassword,
+  resetExpiredPassword,
   getMe,
   updateProfile,
   updateProfilePhoto,
@@ -36,6 +37,10 @@ router.post('/refresh', refresh)
 // Logout — revokes the session family + clears the cookie. Works off the refresh
 // cookie so it succeeds even with an expired access token. No auth required.
 router.post('/logout', logout)
+
+// Forced password reset when login returned passwordExpired — the reset token is
+// the credential (no Bearer). authLimiter (router-level) bounds abuse.
+router.post('/reset-expired-password', resetExpiredPassword)
 
 // Protected — require valid JWT
 router.get('/me', authMiddleware, getMe)

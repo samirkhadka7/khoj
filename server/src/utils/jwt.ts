@@ -31,11 +31,11 @@ export const signToken = (payload: JwtPayload): string => {
 
 export const verifyToken = (token: string): JwtPayload => {
   const payload = jwt.verify(token, getSecret()) as JwtPayload & { purpose?: string }
-  // Reject the short-lived MFA-challenge token here: it is signed with the same
-  // secret but only authorizes the second login step, NOT a full session. Without
-  // this check it could be presented as a Bearer session token (with no role).
-  if (payload.purpose === 'mfa') {
-    throw new Error('MFA challenge token cannot be used as a session token')
+  // Reject any purpose-scoped challenge token (mfa, pwreset) here: they are signed
+  // with the same secret but only authorize a single step, NOT a full session.
+  // Without this a challenge token could be presented as a Bearer session token.
+  if (payload.purpose) {
+    throw new Error('Challenge token cannot be used as a session token')
   }
   return payload
 }
@@ -59,6 +59,29 @@ export const verifyMfaChallenge = (token: string): MfaChallengePayload => {
   const payload = jwt.verify(token, getSecret()) as MfaChallengePayload
   if (payload.purpose !== 'mfa') {
     throw new Error('Not an MFA challenge token')
+  }
+  return payload
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Password-reset challenge token (Feature 3) — issued when login succeeds but  */
+/*  the password is expired. Short-lived, single-purpose: only authorizes        */
+/*  POST /api/auth/reset-expired-password, and is rejected as a session token.    */
+/* -------------------------------------------------------------------------- */
+export interface PasswordResetPayload {
+  userId: string
+  purpose: 'pwreset'
+}
+
+export const signPasswordReset = (userId: string): string => {
+  const options: SignOptions = { expiresIn: '15m' }
+  return jwt.sign({ userId, purpose: 'pwreset' }, getSecret(), options)
+}
+
+export const verifyPasswordReset = (token: string): PasswordResetPayload => {
+  const payload = jwt.verify(token, getSecret()) as PasswordResetPayload
+  if (payload.purpose !== 'pwreset') {
+    throw new Error('Not a password-reset token')
   }
   return payload
 }

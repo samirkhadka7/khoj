@@ -1,12 +1,18 @@
 import type { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import { User, Session, type IUser } from '../models'
-import { signToken, signMfaChallenge, verifyMfaChallenge } from '../utils/jwt'
+import {
+  signToken,
+  signMfaChallenge,
+  verifyMfaChallenge,
+  signPasswordReset,
+  verifyPasswordReset,
+} from '../utils/jwt'
 import { asyncHandler } from '../utils/asyncHandler'
 import { deleteFromCloudinary, uploadToCloudinary } from '../utils/cloudinary'
 import { decrypt } from '../utils/crypto'
 import { verifyTotp, matchAndConsumeBackupCode } from '../utils/mfa'
-import { validatePassword } from '../utils/passwordPolicy'
+import { validatePassword, isPasswordExpired } from '../utils/passwordPolicy'
 import { hashToken, hashUserAgent } from '../utils/refreshToken'
 import {
   issueSession,
@@ -147,6 +153,15 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     return
   }
 
+  // 90-day expiry (Feature 3) — non-MFA user, password correct but expired. No
+  // session is issued; a scoped reset token forces a change first. (For MFA users
+  // this is checked in verifyLoginMfa, i.e. AFTER the second factor.)
+  if (isPasswordExpired(user.passwordChangedAt)) {
+    const resetToken = signPasswordReset(user._id.toString())
+    res.json({ success: true, data: { passwordExpired: true, resetToken } })
+    return
+  }
+
   const token = signToken({ userId: user._id.toString(), role: user.role })
   // Start a session family + set the HttpOnly refresh cookie (Feature 5).
   await issueSession(user._id.toString(), req, res)
@@ -204,6 +219,14 @@ export const verifyLoginMfa = asyncHandler(async (req: Request, res: Response) =
   if (backupIdx !== -1) {
     user.markModified('mfaBackupCodes')
     await user.save()
+  }
+
+  // 90-day expiry (Feature 3) — enforced here, AFTER the second factor, so a
+  // stolen expired password can't be reset without also passing MFA.
+  if (isPasswordExpired(user.passwordChangedAt)) {
+    const resetToken = signPasswordReset(user._id.toString())
+    res.json({ success: true, data: { passwordExpired: true, resetToken } })
+    return
   }
 
   const token = signToken({ userId: user._id.toString(), role: user.role })
@@ -365,6 +388,68 @@ export const changePassword = asyncHandler(async (req: Request, res: Response) =
   await revokeUserSessionsExcept(user._id.toString(), keepFamilyId)
 
   res.json({ success: true, message: 'Password changed. Other sessions have been signed out.' })
+})
+
+/* -------------------------------------------------------------------------- */
+/*  POST /api/auth/reset-expired-password                                     */
+/*  Forced flow when login returned passwordExpired. The reset token (issued   */
+/*  only after password + MFA) is the credential — no current password needed   */
+/*  (it was just verified at login). Sets a policy-valid, non-reused password   */
+/*  and logs the user in with a fresh session.                                 */
+/* -------------------------------------------------------------------------- */
+
+export const resetExpiredPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { resetToken, newPassword } = req.body as { resetToken?: string; newPassword?: string }
+  if (!resetToken || !newPassword) {
+    res.status(400).json({ success: false, message: 'resetToken and newPassword are required' })
+    return
+  }
+
+  let userId: string
+  try {
+    userId = verifyPasswordReset(resetToken).userId
+  } catch {
+    res.status(401).json({ success: false, message: 'Password-reset session expired — please log in again' })
+    return
+  }
+
+  const user = await User.findById(userId).select('+passwordHash +passwordHistory')
+  if (!user) {
+    res.status(404).json({ success: false, message: 'User not found' })
+    return
+  }
+  if (user.isBanned) {
+    res.status(403).json({ success: false, message: 'This account has been banned' })
+    return
+  }
+
+  const policy = validatePassword(newPassword)
+  if (!policy.valid) {
+    res.status(400).json({ success: false, message: policy.errors[0], errors: policy.errors })
+    return
+  }
+
+  const history = user.passwordHistory ?? [user.passwordHash]
+  for (const oldHash of history) {
+    if (await bcrypt.compare(newPassword, oldHash)) {
+      res.status(400).json({ success: false, message: 'You cannot reuse one of your last 5 passwords' })
+      return
+    }
+  }
+
+  const newHash = await bcrypt.hash(newPassword, SALT_ROUNDS)
+  const newHistory = [...history, newHash].slice(-5)
+  await User.updateOne(
+    { _id: user._id },
+    { $set: { passwordHash: newHash, passwordHistory: newHistory, passwordChangedAt: new Date() } }
+  )
+
+  // Kill any pre-existing sessions for safety, then start a fresh one — the
+  // password is now valid, so we log the user straight in.
+  await revokeUserSessionsExcept(user._id.toString())
+  const token = signToken({ userId: user._id.toString(), role: user.role })
+  await issueSession(user._id.toString(), req, res)
+  res.json({ success: true, data: { token, user: sanitizeUser(user) } })
 })
 
 /* -------------------------------------------------------------------------- */
