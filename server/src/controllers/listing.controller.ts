@@ -10,6 +10,7 @@ import {
 } from '../utils/cloudinary'
 import { validateTypeFields } from '../utils/validateTypeFields'
 import { escapeRegex } from '../utils/escapeRegex'
+import { audit } from '../utils/audit'
 
 /* -------------------------------------------------------------------------- */
 /*  Helpers                                                                    */
@@ -134,6 +135,7 @@ export const createListing = asyncHandler(async (req: Request, res: Response) =>
     typeFields: tfResult.data,
   })
 
+  audit({ action: 'listing.create', actorId: req.user!.userId, targetId: listing._id, ip: req.ip, outcome: 'success' })
   res.status(201).json({ success: true, data: listing })
 })
 
@@ -399,6 +401,7 @@ export const updateListing = asyncHandler(async (req: Request, res: Response) =>
   }
 
   await listing.save()
+  audit({ action: 'listing.update', actorId: req.user!.userId, targetId: listing._id, ip: req.ip, outcome: 'success' })
   res.json({ success: true, data: listing })
 })
 
@@ -438,6 +441,7 @@ export const deleteListing = asyncHandler(async (req: Request, res: Response) =>
 
   void deleteManyFromCloudinary([...imageUrls, videoUrl])
 
+  audit({ action: 'listing.delete', actorId: req.user!.userId, targetId: id, ip: req.ip, outcome: 'success' })
   res.json({ success: true, message: 'Listing deleted' })
 })
 

@@ -14,6 +14,7 @@ import { createNotification } from '../utils/notifications'
 import { deleteManyFromCloudinary } from '../utils/cloudinary'
 import { escapeRegex } from '../utils/escapeRegex'
 import { decrypt } from '../utils/crypto'
+import { audit } from '../utils/audit'
 
 /**
  * KYC PII is stored AES-256-GCM encrypted (Feature 4). The admin review queue
@@ -146,6 +147,7 @@ export const verifyListing = asyncHandler(async (req: Request, res: Response) =>
     relatedId: listing._id,
   })
 
+  audit({ action: 'listing.verify', actorId: req.user!.userId, targetId: listing._id, ip: req.ip, outcome: 'success' })
   res.json({ success: true, data: listing })
 })
 
@@ -173,6 +175,7 @@ export const unverifyListing = asyncHandler(async (req: Request, res: Response) 
   }
 
   // No notification on unverify — admin's reason for revoking is usually internal
+  audit({ action: 'listing.unverify', actorId: req.user!.userId, targetId: listing._id, ip: req.ip, outcome: 'success' })
   res.json({ success: true, data: listing })
 })
 
@@ -270,6 +273,7 @@ export const banUser = asyncHandler(async (req: Request, res: Response) => {
   user.isBanned = true
   await user.save()
 
+  audit({ action: 'admin.user.ban', actorId: req.user!.userId, targetId: user._id, ip: req.ip, outcome: 'success' })
   res.json({ success: true, data: user })
 })
 
@@ -296,6 +300,7 @@ export const unbanUser = asyncHandler(async (req: Request, res: Response) => {
     return
   }
 
+  audit({ action: 'admin.user.unban', actorId: req.user!.userId, targetId: user._id, ip: req.ip, outcome: 'success' })
   res.json({ success: true, data: user })
 })
 
@@ -380,6 +385,7 @@ export const approveKyc = asyncHandler(async (req: Request, res: Response) => {
     relatedId: kyc._id,
   })
 
+  audit({ action: 'kyc.approve', actorId: req.user!.userId, targetId: kyc.userId, ip: req.ip, outcome: 'success', meta: { kycId: kyc._id.toString() } })
   res.json({ success: true, data: kyc })
 })
 
@@ -433,6 +439,8 @@ export const rejectKyc = asyncHandler(async (req: Request, res: Response) => {
     relatedId: kyc._id,
   })
 
+  // Note: the rejection REASON text is intentionally not logged (may hold notes/PII).
+  audit({ action: 'kyc.reject', actorId: req.user!.userId, targetId: kyc.userId, ip: req.ip, outcome: 'success', meta: { kycId: kyc._id.toString() } })
   res.json({ success: true, data: kyc })
 })
 

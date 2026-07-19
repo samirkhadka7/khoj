@@ -9,6 +9,7 @@ import {
 import { asyncHandler } from '../utils/asyncHandler'
 import { createNotification } from '../utils/notifications'
 import { sendSMS } from '../utils/sparrowSMS'
+import { audit } from '../utils/audit'
 
 /* -------------------------------------------------------------------------- */
 /*  Helpers                                                                    */
@@ -117,6 +118,7 @@ export const sendContactRequest = asyncHandler(async (req: Request, res: Respons
     )
   }
 
+  audit({ action: 'contact.send', actorId: req.user!.userId, targetId: request._id, ip: req.ip, outcome: 'success', meta: { listingId: listing._id.toString(), ownerId: listing.ownerId.toString() } })
   res.status(201).json({ success: true, data: request })
 })
 
@@ -242,6 +244,7 @@ export const acceptRequest = asyncHandler(async (req: Request, res: Response) =>
     )
   }
 
+  audit({ action: 'contact.accept', actorId: req.user!.userId, targetId: request._id, ip: req.ip, outcome: 'success' })
   res.json({ success: true, data: request })
 })
 
@@ -292,6 +295,7 @@ export const rejectRequest = asyncHandler(async (req: Request, res: Response) =>
     relatedId: request._id,
   })
 
+  audit({ action: 'contact.reject', actorId: req.user!.userId, targetId: request._id, ip: req.ip, outcome: 'success' })
   res.json({ success: true, data: request })
 })
 

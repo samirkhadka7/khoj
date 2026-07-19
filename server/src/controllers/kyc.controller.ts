@@ -9,6 +9,7 @@ import {
   type KycAssetRef,
 } from '../utils/cloudinary'
 import { encrypt, decrypt } from '../utils/crypto'
+import { audit } from '../utils/audit'
 
 /* -------------------------------------------------------------------------- */
 /*  Encryption helpers (Feature 4)                                             */
@@ -171,6 +172,7 @@ export const submitKyc = asyncHandler(async (req: Request, res: Response) => {
     // Old private assets from the rejected submission — clean them up.
     for (const ref of oldRefs) void deleteKycAsset(ref)
 
+    audit({ action: 'kyc.submit', actorId: req.user!.userId, targetId: existing._id, ip: req.ip, outcome: 'success', meta: { resubmit: true } })
     res.status(200).json({ success: true, data: sanitizeKycForOwner(existing) })
     return
   }
@@ -190,6 +192,7 @@ export const submitKyc = asyncHandler(async (req: Request, res: Response) => {
     { $set: { phone: phone.trim() } }
   )
 
+  audit({ action: 'kyc.submit', actorId: req.user!.userId, targetId: kyc._id, ip: req.ip, outcome: 'success' })
   res.status(201).json({ success: true, data: sanitizeKycForOwner(kyc) })
 })
 
@@ -251,5 +254,7 @@ export const getKycDocuments = asyncHandler(async (req: Request, res: Response) 
     }
   }
 
+  // Sensitive-access trail: who opened whose citizenship documents, and when.
+  audit({ action: 'kyc.document.view', actorId: req.user!.userId, targetId: kyc._id, ip: req.ip, outcome: 'success' })
   res.json({ success: true, data: { documents, expiresInSeconds: TTL_SECONDS } })
 })
