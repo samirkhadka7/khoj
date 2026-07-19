@@ -6,8 +6,6 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock,
-  Eye,
-  Heart,
   Loader2,
   MessageSquare,
   Plus,

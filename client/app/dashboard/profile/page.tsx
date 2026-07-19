@@ -12,11 +12,9 @@ import {
   Loader2,
   Lock,
   Mail,
-  Phone,
   Save,
   ShieldCheck,
   TrendingUp,
-  User as UserIcon,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '@/lib/axios'

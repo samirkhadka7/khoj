@@ -17,7 +17,7 @@ export function Step3TypeFields({ onBack, onNext }: Step3Props) {
 
   // Generic helper — write a single key into typeFields without trampling siblings
   const set = (key: string, val: unknown) => {
-    setValue('typeFields' as 'typeFields', { ...tf, [key]: val }, { shouldDirty: true })
+    setValue('typeFields' as const, { ...tf, [key]: val }, { shouldDirty: true })
   }
 
   return (

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import {
-  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -35,13 +34,6 @@ import {
   TrustCard,
 } from '@/components/listing-detail/sections'
 import type { ApiResponse, ContactRequest, Listing, User } from '@/types'
-
-const TYPE_LABEL = {
-  hostel: 'Hostel',
-  room: 'Room / Flat',
-  office: 'Office',
-  business: 'Business',
-} as const
 
 const FALLBACK_GRADIENTS = {
   hostel: 'linear-gradient(135deg, #c8eddf 0%, #93d9bc 100%)',
