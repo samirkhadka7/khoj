@@ -154,7 +154,7 @@ export function ListingCard({ listing, isFavorite, onToggleFavorite }: ListingCa
         <div className="font-display font-bold text-[15.5px] text-gray-800 truncate">
           {listing.title}
         </div>
-        <div className="flex items-center gap-1 text-[13px] text-gray-400 mt-1.5">
+        <div className="flex items-center gap-1 text-[13px] text-gray-500 mt-1.5">
           <MapPin size={12} strokeWidth={2.5} />
           {listing.location.area}, {listing.location.district}
         </div>
@@ -176,7 +176,7 @@ export function ListingCard({ listing, isFavorite, onToggleFavorite }: ListingCa
           <Star size={13} className="fill-accent-light stroke-accent-light" />
           <span>{listing.averageRating > 0 ? listing.averageRating.toFixed(1) : 'New'}</span>
           {listing.totalReviews > 0 && (
-            <span className="text-gray-400 font-normal">({listing.totalReviews} reviews)</span>
+            <span className="text-gray-500 font-normal">({listing.totalReviews} reviews)</span>
           )}
         </div>
 
@@ -184,7 +184,7 @@ export function ListingCard({ listing, isFavorite, onToggleFavorite }: ListingCa
           <div className="font-display font-extrabold text-[20px] text-primary">
             NPR {listing.price.toLocaleString('en-IN')}
           </div>
-          <div className="text-[12.5px] font-normal text-gray-400">/month</div>
+          <div className="text-[12.5px] font-normal text-gray-500">/month</div>
         </div>
       </div>
 

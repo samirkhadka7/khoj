@@ -128,7 +128,7 @@ export default function LoginPage() {
             {['Verified listings', 'Safe contact system', "Nepal's #1"].map((label, i, arr) => (
               <div
                 key={label}
-                className={`flex items-center gap-1.5 text-[11.5px] text-gray-400 font-medium px-3 ${
+                className={`flex items-center gap-1.5 text-[11.5px] text-gray-500 font-medium px-3 ${
                   i !== arr.length - 1 ? 'border-r border-gray-200' : ''
                 }`}
               >
@@ -248,7 +248,7 @@ export default function LoginPage() {
           {/* Divider */}
           <div className="flex items-center gap-3 my-[18px]">
             <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-[12px] text-gray-400 font-medium whitespace-nowrap">
+            <span className="text-[12px] text-gray-500 font-medium whitespace-nowrap">
               or continue with
             </span>
             <div className="flex-1 h-px bg-gray-200" />
@@ -257,7 +257,7 @@ export default function LoginPage() {
           <GoogleButton />
 
           {/* Switch */}
-          <div className="text-center mt-[18px] text-[13.5px] text-gray-400">
+          <div className="text-center mt-[18px] text-[13.5px] text-gray-500">
             Don&apos;t have an account?{' '}
             <Link
               href="/auth/register"

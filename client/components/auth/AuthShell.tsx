@@ -32,7 +32,7 @@ export function AuthShell({ heading, subheading, children, footer }: AuthShellPr
         }}
       />
 
-      <div className="relative z-10 w-full max-w-[400px]">
+      <main className="relative z-10 w-full max-w-[400px]">
         <div
           className="bg-white rounded-xl border border-gray-100 overflow-hidden"
           style={{ boxShadow: '0 16px 48px rgba(0,0,0,.12)' }}
@@ -62,7 +62,7 @@ export function AuthShell({ heading, subheading, children, footer }: AuthShellPr
             <h1 className="font-display font-extrabold text-[21px] text-gray-800 tracking-[-0.3px] text-center mb-1.5">
               {heading}
             </h1>
-            <p className="text-[14px] text-gray-400 text-center leading-[1.5] mb-[26px]">
+            <p className="text-[14px] text-gray-500 text-center leading-[1.5] mb-[26px]">
               {subheading}
             </p>
 
@@ -71,7 +71,7 @@ export function AuthShell({ heading, subheading, children, footer }: AuthShellPr
         </div>
 
         {footer}
-      </div>
+      </main>
     </div>
   )
 }

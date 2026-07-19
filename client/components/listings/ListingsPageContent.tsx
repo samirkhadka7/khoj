@@ -180,6 +180,7 @@ export function ListingsPageContent({ basePath, showNavbar = false }: ListingsPa
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
+                aria-label="Sort listings"
                 className="h-10 pl-4 pr-9 font-body text-[14px] text-gray-800 bg-white border-[1.5px] border-gray-200 rounded-full outline-none cursor-pointer appearance-none focus:border-primary transition-colors"
                 style={{
                   backgroundImage:

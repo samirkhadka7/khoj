@@ -56,7 +56,7 @@ export function Footer() {
 function FooterCol({ title, items }: { title: string; items: string[] }) {
   return (
     <div>
-      <h4 className="text-sm font-bold text-on-surface mb-6 uppercase tracking-wider">{title}</h4>
+      <h3 className="text-sm font-bold text-on-surface mb-6 uppercase tracking-wider">{title}</h3>
       <ul className="flex flex-col gap-4">
         {items.map((i) => (
           <li key={i}>

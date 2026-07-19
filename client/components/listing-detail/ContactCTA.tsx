@@ -128,7 +128,7 @@ export function ContactCTA(props: ContactCTAProps) {
           )}
           {listing.isAvailable ? 'Pause Listing' : 'Resume Listing'}
         </button>
-        <p className="text-[11.5px] text-gray-400 text-center mt-2.5 leading-[1.5]">
+        <p className="text-[11.5px] text-gray-500 text-center mt-2.5 leading-[1.5]">
           {listing.isAvailable
             ? 'Visible to tenants — accepting contact requests.'
             : 'Hidden from new searches — existing requests still active.'}
@@ -185,7 +185,7 @@ export function ContactCTA(props: ContactCTAProps) {
         <MessageCircle size={15} strokeWidth={2.5} />
         Request Contact
       </button>
-      <p className="text-[11.5px] text-gray-400 text-center mt-2.5 leading-[1.5]">
+      <p className="text-[11.5px] text-gray-500 text-center mt-2.5 leading-[1.5]">
         Free • No card required • Owner replies in ~2hrs
       </p>
     </div>
@@ -195,7 +195,7 @@ export function ContactCTA(props: ContactCTAProps) {
 function LoadingPanel() {
   return (
     <div className="bg-gray-50 rounded-sm p-6 flex flex-col items-center gap-3">
-      <Loader2 size={20} className="animate-spin text-gray-400" />
+      <Loader2 size={20} className="animate-spin text-gray-500" />
       <p className="text-[12.5px] text-gray-500">Checking request status...</p>
     </div>
   )
@@ -294,7 +294,7 @@ function AcceptedPanel({
             </div>
           </Link>
 
-          <p className="text-[11px] text-gray-400 mt-3 leading-[1.5]">
+          <p className="text-[11px] text-gray-500 mt-3 leading-[1.5]">
             Owner: <span className="font-semibold text-gray-700">{info.ownerName}</span>
           </p>
         </>
@@ -342,7 +342,7 @@ function PendingPanel({ request }: { request: ContactRequest }) {
         <EyeOff size={15} strokeWidth={2.5} />
         Request Pending
       </button>
-      <p className="text-[11.5px] text-gray-400 text-center mt-2.5 leading-[1.5]">
+      <p className="text-[11.5px] text-gray-500 text-center mt-2.5 leading-[1.5]">
         Sent {new Date(request.createdAt).toLocaleString()}
       </p>
     </div>

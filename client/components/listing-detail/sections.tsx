@@ -94,7 +94,7 @@ export function KeyStats({ listing }: { listing: Listing }) {
           key={s.label}
           className={`text-center ${i === 1 && shown.length === 3 ? 'border-x border-gray-200/70' : ''}`}
         >
-          <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wider mb-1">
+          <p className="text-[11px] text-gray-600 font-semibold uppercase tracking-wider mb-1">
             {s.label}
           </p>
           <p className="text-[18px] sm:text-[20px] font-bold text-dark tracking-tight">{s.value}</p>
@@ -221,7 +221,7 @@ export function ReviewsSection({ listing }: { listing: Listing }) {
               />
             ))}
           </div>
-          <span className="text-[12px] text-gray-400 font-medium">
+          <span className="text-[12px] text-gray-600 font-medium">
             {total > 0 ? `Total ${total} review${total === 1 ? '' : 's'}` : 'No reviews yet'}
           </span>
         </div>
@@ -229,11 +229,11 @@ export function ReviewsSection({ listing }: { listing: Listing }) {
         <div className="md:col-span-2 space-y-3 py-4">
           {dist.map((d) => (
             <div key={d.star} className="flex items-center gap-4">
-              <span className="w-12 text-[12px] font-medium text-gray-400">{d.star} Star</span>
+              <span className="w-12 text-[12px] font-medium text-gray-500">{d.star} Star</span>
               <div className="flex-1 h-2.5 bg-primary-subtle rounded-full overflow-hidden">
                 <div className="h-full bg-primary rounded-full" style={{ width: `${d.pct}%` }} />
               </div>
-              <span className="w-10 text-right text-[12px] font-medium text-gray-400">{d.pct}%</span>
+              <span className="w-10 text-right text-[12px] font-medium text-gray-500">{d.pct}%</span>
             </div>
           ))}
         </div>
@@ -244,7 +244,7 @@ export function ReviewsSection({ listing }: { listing: Listing }) {
           <Loader2 size={22} className="animate-spin text-gray-300" />
         </div>
       ) : reviews.length === 0 ? (
-        <p className="text-[14px] text-gray-400">
+        <p className="text-[14px] text-gray-500">
           Be the first to review after your contact request is accepted.
         </p>
       ) : (
@@ -266,9 +266,9 @@ export function ReviewsSection({ listing }: { listing: Listing }) {
                     )}
                   </div>
                   <div className="min-w-0">
-                    <h4 className="text-[14px] font-semibold text-gray-800 truncate">
+                    <h3 className="text-[14px] font-semibold text-gray-800 truncate">
                       {reviewer?.name ?? 'Tenant'}
-                    </h4>
+                    </h3>
                     <div className="flex items-center gap-1">
                       {[1, 2, 3, 4, 5].map((i) => (
                         <Star
@@ -277,7 +277,7 @@ export function ReviewsSection({ listing }: { listing: Listing }) {
                           className={i <= r.rating ? 'fill-accent-light stroke-accent-light' : 'stroke-gray-300'}
                         />
                       ))}
-                      <span className="text-[11px] text-gray-400 ml-1">
+                      <span className="text-[11px] text-gray-500 ml-1">
                         {new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                       </span>
                     </div>
@@ -299,7 +299,7 @@ export function ReviewsSection({ listing }: { listing: Listing }) {
 
 export function TrustCard() {
   return (
-    <div className="bg-dark p-6 rounded-xl text-white">
+    <div className="bg-dark p-6 rounded-xl text-white" style={{ backgroundColor: 'var(--dark)' }}>
       <div className="flex items-start gap-4">
         <ShieldCheck size={30} strokeWidth={2} className="flex-shrink-0 text-brand-fg" />
         <div>

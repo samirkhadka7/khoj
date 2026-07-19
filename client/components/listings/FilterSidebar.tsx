@@ -109,7 +109,7 @@ export function FilterSidebar({ value, onApply }: FilterSidebarProps) {
           <button
             type="button"
             onClick={handleReset}
-            className="text-[12.5px] font-semibold text-gray-400 hover:text-primary transition-colors"
+            className="text-[12.5px] font-semibold text-gray-500 hover:text-primary transition-colors"
           >
             Reset all
           </button>
@@ -152,7 +152,7 @@ export function FilterSidebar({ value, onApply }: FilterSidebarProps) {
                 >
                   {t.label}
                 </span>
-                <span className="ml-auto text-[11.5px] text-gray-400 bg-gray-100 rounded-full px-[7px] py-px">
+                <span className="ml-auto text-[11.5px] text-gray-500 bg-gray-100 rounded-full px-[7px] py-px">
                   {t.count}
                 </span>
               </button>
@@ -305,7 +305,7 @@ export function FilterSidebar({ value, onApply }: FilterSidebarProps) {
         <div className="flex items-center justify-between">
           <div>
             <div className="text-[14px] text-gray-600 font-medium">Parking available</div>
-            <div className="text-[12px] text-gray-400 mt-0.5">Has dedicated parking space</div>
+            <div className="text-[12px] text-gray-500 mt-0.5">Has dedicated parking space</div>
           </div>
           <button
             type="button"
@@ -338,7 +338,7 @@ export function FilterSidebar({ value, onApply }: FilterSidebarProps) {
         <div className="flex items-center justify-between">
           <div>
             <div className="text-[14px] text-gray-600 font-medium">Verified listings only</div>
-            <div className="text-[12px] text-gray-400 mt-0.5">Show only owner-verified spaces</div>
+            <div className="text-[12px] text-gray-500 mt-0.5">Show only owner-verified spaces</div>
           </div>
           <button
             type="button"

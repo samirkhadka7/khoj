@@ -53,18 +53,20 @@ export function Hero() {
             className="bg-surface p-2 rounded-xl shadow-xl flex flex-col md:flex-row gap-2 w-full"
           >
             <div className="flex-1 flex items-center px-4 bg-surface-container-low rounded-lg">
-              <span className="material-symbols-outlined text-outline">search</span>
+              <span className="material-symbols-outlined text-outline" aria-hidden="true">search</span>
               <input
                 className="w-full bg-transparent border-none focus:ring-0 py-4 text-base text-on-surface"
                 placeholder="Location, Area or City"
+                aria-label="Search by location, area or city"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
               />
             </div>
             <div className="flex-1 flex items-center px-4 bg-surface-container-low rounded-lg">
-              <span className="material-symbols-outlined text-outline">category</span>
+              <span className="material-symbols-outlined text-outline" aria-hidden="true">category</span>
               <select
                 className="w-full bg-transparent border-none focus:ring-0 py-4 text-base text-on-surface"
+                aria-label="Space type"
                 value={type}
                 onChange={(e) => setType(e.target.value)}
               >

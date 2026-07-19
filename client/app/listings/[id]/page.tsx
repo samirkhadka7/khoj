@@ -226,7 +226,7 @@ export default function ListingDetailPage() {
       <main className="min-h-screen bg-offWhite">
         <Navbar />
         <div className="pt-[120px] flex items-center justify-center">
-          <Loader2 size={32} className="text-gray-400 animate-spin" />
+          <Loader2 size={32} className="text-gray-500 animate-spin" />
         </div>
       </main>
     )
@@ -279,7 +279,7 @@ export default function ListingDetailPage() {
 
       <div className="max-w-container mx-auto px-6 lg:px-8 pt-[88px] pb-16">
         {/* Breadcrumbs */}
-        <nav className="flex items-center gap-1.5 mb-6 text-[13px] text-gray-400 flex-wrap">
+        <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 mb-6 text-[13px] text-gray-500 flex-wrap">
           <Link href="/" className="hover:text-primary transition-colors">
             Home
           </Link>
@@ -332,7 +332,7 @@ export default function ListingDetailPage() {
                   <MapPin size={16} className="text-primary" />
                   {listing.location.address}, {listing.location.area}, {listing.location.district}
                 </span>
-                <span className="flex items-center gap-1.5 text-gray-400">
+                <span className="flex items-center gap-1.5 text-gray-500">
                   <Eye size={14} />
                   {listing.viewCount} views
                 </span>
@@ -377,7 +377,7 @@ export default function ListingDetailPage() {
             {/* Location / map */}
             <section>
               <h2 className="text-[22px] font-bold text-dark tracking-tight mb-6">Location</h2>
-              <div className="h-[280px] rounded-lg bg-primary-subtle/40 border border-gray-200/60 flex flex-col items-center justify-center text-gray-400">
+              <div className="h-[280px] rounded-lg bg-primary-subtle/40 border border-gray-200/60 flex flex-col items-center justify-center text-gray-600">
                 <MapPin size={28} className="text-primary mb-2" />
                 <p className="text-[14px] font-semibold text-gray-600">
                   {listing.location.area}, {listing.location.district}
@@ -397,10 +397,10 @@ export default function ListingDetailPage() {
               <div className="bg-white p-6 sm:p-7 border border-gray-200/70 rounded-2xl shadow-lg">
                 <div className="flex justify-between items-baseline mb-5">
                   <div>
-                    <p className="text-[12px] text-gray-400 font-medium">Starting from</p>
+                    <p className="text-[12px] text-gray-500 font-medium">Starting from</p>
                     <h3 className="text-[26px] font-bold text-dark tracking-tight">
                       NPR {listing.price.toLocaleString('en-IN')}
-                      <span className="text-[14px] font-normal text-gray-400"> /month</span>
+                      <span className="text-[14px] font-normal text-gray-500"> /month</span>
                     </h3>
                   </div>
                   {listing.negotiable && (
@@ -470,7 +470,7 @@ export default function ListingDetailPage() {
                             <ShieldCheck size={14} className="text-primary" strokeWidth={2.5} />
                           )}
                         </h4>
-                        <p className="text-[12px] text-gray-400">
+                        <p className="text-[12px] text-gray-500">
                           Member since{' '}
                           {new Date(owner.createdAt).toLocaleDateString('en-US', {
                             month: 'short',
@@ -493,7 +493,7 @@ export default function ListingDetailPage() {
                     <button
                       type="button"
                       onClick={handleReport}
-                      className="mt-4 w-full flex items-center justify-center gap-1.5 text-[12px] text-gray-400 hover:text-red-500 transition-colors"
+                      className="mt-4 w-full flex items-center justify-center gap-1.5 text-[12px] text-gray-500 hover:text-red-500 transition-colors"
                     >
                       <Flag size={12} />
                       Report this listing
