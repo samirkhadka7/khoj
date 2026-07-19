@@ -11,7 +11,7 @@ import {
 } from '../models'
 import { asyncHandler } from '../utils/asyncHandler'
 import { createNotification } from '../utils/notifications'
-import { deleteManyFromCloudinary } from '../utils/cloudinary'
+import { deleteKycAsset, type KycAssetRef } from '../utils/cloudinary'
 import { escapeRegex } from '../utils/escapeRegex'
 import { decrypt } from '../utils/crypto'
 import { audit } from '../utils/audit'
@@ -418,10 +418,19 @@ export const rejectKyc = asyncHandler(async (req: Request, res: Response) => {
     return
   }
 
-  // Snapshot doc URLs before clearing — they're stored on the kyc doc and
-  // resubmission would overwrite them with new ones, but if the user never
-  // resubmits we'd leak storage forever. Delete on reject.
-  const docUrls = [kyc.citizenshipFront, kyc.citizenshipBack, kyc.selfieWithId]
+  // Snapshot the ENCRYPTED refs before mutating so we can delete the private
+  // Cloudinary assets. (Feature 4: these fields are AES-GCM ciphertext of
+  // { publicId, resourceType, format } — NOT URLs. The old URL-based delete
+  // silently no-op'd on ciphertext, orphaning rejected applicants' ID scans.)
+  const oldRefs = [kyc.citizenshipFront, kyc.citizenshipBack, kyc.selfieWithId]
+    .map((c) => {
+      try {
+        return JSON.parse(decrypt(c)) as KycAssetRef
+      } catch {
+        return null
+      }
+    })
+    .filter((r): r is KycAssetRef => r !== null)
 
   kyc.status = 'rejected'
   kyc.rejectionReason = reason.trim()
@@ -429,8 +438,8 @@ export const rejectKyc = asyncHandler(async (req: Request, res: Response) => {
   kyc.reviewedAt = new Date()
   await kyc.save()
 
-  // Fire-and-forget — admin already saw the reject succeed
-  void deleteManyFromCloudinary(docUrls)
+  // Fire-and-forget — admin already saw the reject succeed.
+  for (const ref of oldRefs) void deleteKycAsset(ref)
 
   await createNotification({
     userId: kyc.userId,
