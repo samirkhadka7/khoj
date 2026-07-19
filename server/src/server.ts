@@ -12,6 +12,7 @@ import { connectDB } from './config/db'
 // Side-effect import — registers all Mongoose schemas at boot so indexes (e.g. 2dsphere) are built early
 import './models'
 import authRoutes from './routes/auth.routes'
+import userRoutes from './routes/users.routes'
 import listingRoutes from './routes/listing.routes'
 import contactRoutes from './routes/contact.routes'
 import notificationRoutes from './routes/notification.routes'
@@ -136,6 +137,7 @@ app.get('/', (_req: Request, res: Response) => {
 
 // API routes
 app.use('/api/auth', authRoutes)
+app.use('/api/users', userRoutes)
 app.use('/api/listings', listingRoutes)
 app.use('/api/contact-request', contactRoutes)
 app.use('/api/notifications', notificationRoutes)
