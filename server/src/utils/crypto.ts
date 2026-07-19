@@ -29,6 +29,7 @@ import crypto from 'crypto'
 
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 12 // 96-bit nonce — the recommended IV size for GCM
+const AUTH_TAG_LENGTH = 16 // pin the 128-bit GCM tag so a short/forged tag is rejected
 const KEY_VERSION = 'v1'
 
 /**
@@ -63,7 +64,7 @@ const getKey = (): Buffer => {
 /** Encrypt a UTF-8 string. Returns the versioned, base64-packed ciphertext string. */
 export const encrypt = (plaintext: string): string => {
   const iv = crypto.randomBytes(IV_LENGTH)
-  const cipher = crypto.createCipheriv(ALGORITHM, getKey(), iv)
+  const cipher = crypto.createCipheriv(ALGORITHM, getKey(), iv, { authTagLength: AUTH_TAG_LENGTH })
   const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
   const authTag = cipher.getAuthTag()
   return [
@@ -84,7 +85,9 @@ export const decrypt = (payload: string): string => {
   const iv = Buffer.from(ivB64, 'base64')
   const authTag = Buffer.from(tagB64, 'base64')
   const data = Buffer.from(dataB64, 'base64')
-  const decipher = crypto.createDecipheriv(ALGORITHM, getKey(), iv)
+  // Reject a wrong-length tag outright (defends against short-tag forgery on GCM).
+  if (authTag.length !== AUTH_TAG_LENGTH) throw new Error('Invalid authentication tag length')
+  const decipher = crypto.createDecipheriv(ALGORITHM, getKey(), iv, { authTagLength: AUTH_TAG_LENGTH })
   decipher.setAuthTag(authTag) // GCM integrity check — throws on any tampering
   return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8')
 }

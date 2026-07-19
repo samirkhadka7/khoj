@@ -13,6 +13,8 @@
 
 const SITEVERIFY_URL = 'https://api.hcaptcha.com/siteverify'
 // hCaptcha's documented always-pass test secret (paired with the test sitekey).
+// This is a PUBLIC test constant, not a credential — SAST false positive.
+// nosemgrep: node_secret
 const TEST_SECRET = '0x0000000000000000000000000000000000000000'
 
 export const hcaptchaSecret = (): string => process.env.HCAPTCHA_SECRET || TEST_SECRET

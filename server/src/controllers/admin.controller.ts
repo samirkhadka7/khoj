@@ -466,7 +466,9 @@ export const listAuditLogs = asyncHandler(async (req: Request, res: Response) =>
 
   const filter: Record<string, unknown> = {}
   // Prefix match so ?action=login catches login.success AND login.failure, etc.
+  // Input is escaped via escapeRegex (no unescaped user metacharacters) — ReDoS-safe.
   if (req.query.action) {
+    // nosemgrep: regex_injection_dos
     filter.action = new RegExp('^' + escapeRegex(String(req.query.action)))
   }
   if (req.query.outcome === 'success' || req.query.outcome === 'failure') {
