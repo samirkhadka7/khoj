@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  server:
+    name: Server — typecheck + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+
+  client:
+    name: Client — lint + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  sast:
+    name: SAST — Semgrep (community rulesets, no login)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install semgrep
+      # --oss-only forces the open-source engine (no account/token needed); the
+      # p/* rulesets are fetched from the public registry. Fails on ERROR-severity
+      # findings. node_nosqli_injection is excluded — mitigated globally by
+      # express-mongo-sanitize (see SECURITY.md).
+      - name: Semgrep scan (fail on ERROR severity)
+        env:
+          SEMGREP_APP_TOKEN: ''
+        run: |
+          semgrep scan \
+            --config=p/owasp-top-ten \
+            --config=p/nodejsscan \
+            --config=p/javascript \
+            --config=p/react \
+            --oss-only --metrics=off \
+            --severity=ERROR --error \
+            --exclude-rule ajinabraham.njsscan.database.nosql_find_injection.node_nosqli_injection \
+            server/src client/app client/components client/lib
+
+  audit:
+    name: Dependency audit (npm audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Server: hard-fail on HIGH (currently 0).
+      - name: Server audit (fail on high)
+        working-directory: server
+        run: npm audit --audit-level=high
+      # Client: hard-fail on CRITICAL. HIGH is reported but not blocking — the
+      # remaining highs are Next.js 14 advisories needing a breaking major upgrade,
+      # tracked via Dependabot (see SECURITY.md), not auto-applied.
+      - name: Client audit (fail on critical)
+        working-directory: client
+        run: npm audit --audit-level=critical
+      - name: Client audit (report high, non-blocking)
+        working-directory: client
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
+  docker:
+    name: Docker build check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build server image
+        run: docker build -t baskhoj-server ./server
+      - name: Build client image
+        run: docker build -t baskhoj-client ./client
