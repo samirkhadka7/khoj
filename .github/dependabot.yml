@@ -21,6 +21,12 @@ updates:
     groups:
       client-minor-and-patch:
         update-types: [minor, patch]
+    # Next.js 15 is a breaking major — deferred deliberately (see SECURITY.md),
+    # NOT a permanent dismissal. To be done as a separately-verified migration
+    # after the coursework deadline; remove this ignore to let the PR reappear.
+    ignore:
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
 
   # Keep the CI workflow's own actions (checkout/setup-node/...) up to date.
   - package-ecosystem: github-actions

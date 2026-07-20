@@ -41,13 +41,20 @@ Two categories are handled deliberately:
   dev-only `eslint-config-next` → `glob` chain). Fixing them requires a **major
   Next.js upgrade**, which is a breaking change scheduled as a deliberate,
   separately-verified migration rather than an automatic `npm audit fix --force`.
-  Dependabot opens the upgrade PR (below).
+  The major upgrade itself is deliberately deferred (see the note under Dependabot,
+  below).
 
 ### Dependabot
 
 `.github/dependabot.yml` opens weekly dependency-update PRs for `server/`,
-`client/`, and the GitHub Actions themselves, so vulnerable packages surface (and
-the Next.js upgrade lands) as reviewable PRs.
+`client/`, and the GitHub Actions themselves, so vulnerable packages surface as
+reviewable PRs. Minor/patch updates are **grouped into one PR per ecosystem**
+(limit 5) to avoid a wave of individual PRs; major bumps still get their own PR.
+
+**Deferred (not dismissed):** the Next.js **major** upgrade (14 → 15) is
+`ignore`d in `dependabot.yml` as a deliberate, documented deferral — a breaking
+migration to be done and separately verified after the coursework deadline, not a
+permanent dismissal. Removing the `ignore` entry lets the upgrade PR reappear.
 
 ## Reading a failed run
 
